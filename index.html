@@ -406,7 +406,6 @@
             if (wave > 1 && rand > 0.30 && rand <= 0.60) type = 'worm';
             if (wave > 1 && rand > 0.60 && rand <= 0.80) type = 'trojan'; 
             if (wave > 3 && rand > 0.80 && rand <= 0.94) type = 'brute'; 
-            // REDUCED CIPHER SPAWN RATE FROM 10% TO 6%
             if (wave > 4 && rand > 0.94) type = 'cipher'; 
 
             let e = { x: -40, y: Math.random() * (canvas.height - 150) + 75, type: type, shielded: false };
@@ -415,19 +414,18 @@
             let speedScale = Math.pow(1.05, wave > 1 ? wave - 1 : 0);
 
             if (type === 'worm') {
-                e.speed = (Math.random() * 1.5 + 2.0) * speedScale; e.size = 12; e.hp = 1; e.maxHp = 1; e.color = "#ff003c"; 
+                e.speed = (Math.random() * 1.5 + 2.0) * speedScale; e.size = 14; e.hp = 1; e.maxHp = 1; e.color = "#ff003c"; 
             } else if (type === 'trojan') {
-                e.speed = 0.4 * speedScale; e.size = 28; e.maxHp = Math.floor(6 * hpScale); e.hp = e.maxHp; e.color = "#ff8800"; e.shielded = true; 
+                e.speed = 0.4 * speedScale; e.size = 30; e.maxHp = Math.floor(6 * hpScale); e.hp = e.maxHp; e.color = "#ff8800"; e.shielded = true; 
                 const dict = wave < 4 ? shortWords : shortWords.concat(longWords);
                 e.word = dict[Math.floor(Math.random() * dict.length)];
             } else if (type === 'brute') {
-                e.speed = 0.25 * speedScale; e.size = 36; e.maxHp = Math.floor(20 * hpScale); e.hp = e.maxHp; e.color = "#8800ff"; e.shielded = false; 
+                e.speed = 0.25 * speedScale; e.size = 40; e.maxHp = Math.floor(20 * hpScale); e.hp = e.maxHp; e.color = "#8800ff"; e.shielded = false; 
             } else if (type === 'cipher') {
-                // REDUCED CIPHER SPEED SO THEY DON'T CLUMP AS MUCH
                 e.speed = 0.18 * speedScale; e.size = 35; e.maxHp = Math.floor(10 * hpScale); e.hp = e.maxHp; e.color = "#00f3ff"; e.shielded = true; 
                 e.word = cipherWords[Math.floor(Math.random() * cipherWords.length)];
             } else {
-                e.speed = (Math.random() * 1.0 + 0.8) * speedScale; e.size = 20; e.maxHp = Math.floor(2 * hpScale); e.hp = e.maxHp; e.color = "#d900ff"; 
+                e.speed = (Math.random() * 1.0 + 0.8) * speedScale; e.size = 22; e.maxHp = Math.floor(2 * hpScale); e.hp = e.maxHp; e.color = "#d900ff"; 
             }
             enemies.push(e);
             enemiesToSpawn--; 
@@ -452,7 +450,6 @@
                     placementMode = false; gameContainer.classList.remove('placement-mode');
                 } else if (currentMana >= cost) {
                     currentMana -= cost;
-                    // ADDED INITIAL TERRITORY RADIUS
                     turrets.push({ x: clickX, y: clickY, hp: 12, maxHp: 12, cooldown: 0, size: 16, angle: 0, level: 1, territory: 100 });
                     placementMode = false; gameContainer.classList.remove('placement-mode');
                     addFloatingText(clickX, clickY, "SENTRY ONLINE", "#39ff14");
@@ -473,13 +470,13 @@
             }
 
             if (clickedTurret) {
-                let upgradeCost = clickedTurret.level === 1 ? 100 : (clickedTurret.level === 2 ? 250 : -1);
+                // REDUCED LEVEL 3 UPGRADE COST TO 150
+                let upgradeCost = clickedTurret.level === 1 ? 100 : (clickedTurret.level === 2 ? 150 : -1);
                 if (upgradeCost !== -1 && currentMana >= upgradeCost) {
                     currentMana -= upgradeCost;
                     clickedTurret.level++;
                     clickedTurret.maxHp += 15;
                     clickedTurret.hp = clickedTurret.maxHp;
-                    // INCREASE TERRITORY RADIUS ON UPGRADE
                     clickedTurret.territory += 50;
                     addFloatingText(clickX, clickY, `LVL ${clickedTurret.level} UPGRADE`, "#39ff14");
                     createExplosion(clickX, clickY, "#00f3ff", 20);
@@ -582,20 +579,59 @@
         }
 
         function drawEnemy(e) {
-            ctx.fillStyle = e.color; ctx.fillRect(e.x - e.size/2, e.y - e.size/2, e.size, e.size);
-            let glitchOff = (frameCount % 4 === 0) ? e.size/2 : -e.size/2;
-            ctx.fillRect(e.x + glitchOff, e.y - e.size/4, e.size/2, e.size/2); ctx.fillRect(e.x - e.size/4, e.y + glitchOff, e.size/2, e.size/2);
-            ctx.fillStyle = "#fff"; ctx.fillRect(e.x - 2, e.y - 2, 4, 4);
+            let hpPct = e.hp / e.maxHp;
+            
+            // Visual Damage Logic
+            let damageGlitch = (1 - hpPct) * 8;
+            let glitchOffX = (Math.random() * damageGlitch) - (damageGlitch / 2);
+            let glitchOffY = (Math.random() * damageGlitch) - (damageGlitch / 2);
+
+            ctx.save();
+            ctx.translate(e.x + glitchOffX, e.y + glitchOffY);
+
+            // New Enemy Visuals
+            if (e.type === 'worm') {
+                ctx.fillStyle = e.color;
+                ctx.beginPath(); ctx.arc(0, 0, e.size/2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(-e.size*0.8, 0, e.size/3, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(-e.size*1.5, 0, e.size/4, 0, Math.PI*2); ctx.fill();
+            } else if (e.type === 'brute' || e.type === 'boss') {
+                ctx.fillStyle = "#111"; ctx.fillRect(-e.size/2, -e.size/2, e.size, e.size);
+                ctx.strokeStyle = e.color; ctx.lineWidth = 3; ctx.strokeRect(-e.size/2, -e.size/2, e.size, e.size);
+                ctx.fillStyle = e.color; ctx.fillRect(-e.size/4, -e.size/4, e.size/2, e.size/2);
+            } else { 
+                ctx.fillStyle = e.color; 
+                ctx.beginPath();
+                ctx.moveTo(0, -e.size/2); ctx.lineTo(e.size/2, 0); ctx.lineTo(0, e.size/2); ctx.lineTo(-e.size/2, 0);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = "#050a0f"; ctx.fillRect(-3, -3, 6, 6);
+            }
+
+            // Visual Damage - Particles and Corruption
+            if (hpPct <= 0.5 && Math.random() > 0.8) {
+                particles.push({ x: e.x, y: e.y, vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3, life: 0.6, color: e.color, size: 2});
+            }
+
+            if (hpPct < 1.0) {
+                 ctx.fillStyle = `rgba(0, 0, 0, ${0.8 - hpPct * 0.8})`;
+                 ctx.fillRect(-e.size/2, -e.size/2, e.size, e.size);
+            }
+
+            ctx.restore();
 
             if (e.shielded) {
                 ctx.strokeStyle = e.color === "#00f3ff" ? "#00f3ff" : "#ff003c"; 
                 ctx.lineWidth = e.type === 'boss' ? 4 : 2; 
-                ctx.strokeRect(e.x - e.size, e.y - e.size, e.size*2, e.size*2);
+                
+                let sSize = e.size * 1.1;
+                ctx.strokeRect(e.x - sSize + glitchOffX, e.y - sSize + glitchOffY, sSize*2, sSize*2);
                 ctx.fillStyle = e.color === "#00f3ff" ? "rgba(0,243,255,0.1)" : "rgba(255,0,60,0.2)"; 
-                ctx.fillRect(e.x - e.size, e.y - e.size, e.size*2, e.size*2);
+                ctx.fillRect(e.x - sSize + glitchOffX, e.y - sSize + glitchOffY, sSize*2, sSize*2);
+                
                 ctx.fillStyle = "#fff"; 
                 ctx.font = e.type === 'boss' ? "bold 30px 'VT323', monospace" : "bold 18px 'VT323', monospace"; 
-                ctx.textAlign = "center"; ctx.fillText(e.word, e.x, e.y - e.size - 10);
+                ctx.textAlign = "center"; 
+                ctx.fillText(e.word, e.x + glitchOffX, e.y - sSize - 10 + glitchOffY);
             }
         }
 
@@ -729,7 +765,6 @@
                 }
             }
 
-            // DRAW TURRET TERRITORY AURAS BEHIND ENEMIES
             for (let i = 0; i < turrets.length; i++) {
                 let t = turrets[i];
                 ctx.fillStyle = "rgba(57, 255, 20, 0.08)";
@@ -828,7 +863,7 @@
 
                         let e = { 
                             x: -80, y: canvas.height/2, type: 'boss', shielded: true, 
-                            speed: 0.15 * speedScale, size: 60, hp: 1, maxHp: Math.floor(50 * hpScale), color: "#ff003c",
+                            speed: 0.15 * speedScale, size: 60, hp: Math.floor(50 * hpScale), maxHp: Math.floor(50 * hpScale), color: "#ff003c",
                             word: bossWords[Math.floor(Math.random() * bossWords.length)]
                         };
                         enemies.push(e);
@@ -862,7 +897,6 @@
 
             let fortressFrontLine = canvas.width - (100 + Math.floor((playerStats.maxMana - 100) / 25) * 6) - 15;
 
-            // MOVEMENT AND TERRITORY CHECK LOGIC
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
                 
@@ -874,7 +908,7 @@
                 }
                 
                 let moveSpeed = enemy.speed * timeScale;
-                if (inTerritory) moveSpeed *= 0.4; // 60% SLOW IF IN TERRITORY
+                if (inTerritory) moveSpeed *= 0.4; 
                 
                 enemy.x += moveSpeed;
                 if (frameCount % 10 === 0 && !enemy.shielded && enemy.type !== 'boss') enemy.y += ((Math.random() - 0.5) * 4) * timeScale;
