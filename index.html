@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System_Purge.exe</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --term-green: #39ff14;
+            --term-red: #ff003c;
+            --term-cyan: #00f3ff;
+            --bg-dark: #050a0f;
+        }
+
+        body {
+            font-family: 'VT323', monospace; background: #000; color: var(--term-green);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; overflow: hidden; user-select: none;
+        }
+        
+        .game-wrapper { 
+            position: relative; width: 850px; height: 600px; background: var(--bg-dark);
+            border: 4px solid #112; box-shadow: 0 0 30px rgba(0, 243, 255, 0.1);
+            display: flex; flex-direction: column; transition: box-shadow 0.3s, border-color 0.3s;
+            border-radius: 8px; overflow: hidden;
+        }
+        
+        .game-wrapper.focus-mode { box-shadow: 0 0 50px rgba(0, 243, 255, 0.5); border-color: var(--term-cyan); }
+        .game-wrapper.placement-mode { box-shadow: 0 0 50px rgba(57, 255, 20, 0.5); border-color: var(--term-green); cursor: cell !important; }
+
+        .crt-overlay {
+            position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 50; pointer-events: none;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px; box-shadow: inset 0 0 80px rgba(0,0,0,0.9);
+        }
+
+        .terminal-container {
+            height: 60px; background: #020406; border-top: 2px solid #112;
+            display: flex; align-items: center; padding: 0 15px; font-size: 2.2rem; z-index: 60; box-sizing: border-box;
+            transition: all 0.3s;
+        }
+        .focus-mode .terminal-container { background: #001a33; border-color: var(--term-cyan); border-top: 2px solid var(--term-cyan); }
+        .focus-mode #cmd-input { color: #fff; text-shadow: 0 0 5px #fff; }
+
+        .prompt { color: var(--term-cyan); margin-right: 10px; font-weight: bold; }
+        #cmd-input {
+            background: transparent; border: none; color: var(--term-green);
+            font-family: 'VT323', monospace; font-size: 2.2rem; flex-grow: 1; outline: none; text-transform: lowercase;
+            text-shadow: 0 0 3px var(--term-green);
+        }
+
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 540px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0, 2, 5, 0.95); z-index: 70; opacity: 0; pointer-events: none; 
+            transition: opacity 0.4s ease-in-out; backdrop-filter: blur(2px);
+        }
+        .screen.active { opacity: 1; pointer-events: all; }
+        
+        .game-title { margin: 0 0 20px 0; color: var(--term-cyan); font-size: 4.5rem; text-transform: uppercase; letter-spacing: 2px; text-shadow: 4px 4px 0px #000, -2px -2px 0px var(--term-red); }
+
+        #story-text { color: var(--term-red); font-size: 2.2rem; text-align: center; margin-bottom: 20px; max-width: 80%; text-shadow: 2px 2px 0px #000, 0 0 10px var(--term-red); }
+        .currency-display { font-size: 2.5rem; color: var(--term-cyan); margin-bottom: 20px; text-shadow: 0 0 8px var(--term-cyan); }
+
+        button {
+            padding: 10px 25px; font-family: 'VT323', monospace; font-size: 1.8rem; letter-spacing: 1px;
+            color: #000; background: var(--term-green); border: none; cursor: pointer; text-transform: uppercase; margin: 5px;
+            box-shadow: 4px 4px 0px #000; transition: all 0.1s; font-weight: bold;
+        }
+        button:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #000; background: #fff;}
+        button:disabled { background: #222; color: #555; box-shadow: none; cursor: not-allowed; }
+
+        .shop-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; width: 90%; margin-bottom: 20px; }
+        .upgrade-card { background: rgba(5, 10, 15, 0.8); border: 1px solid #334; padding: 15px; text-align: center; transition: border-color 0.2s; position: relative;}
+        .upgrade-card:hover { border-color: var(--term-cyan); }
+        .upgrade-card h3 { margin: 0 0 5px 0; color: #fff; font-size: 1.4rem; text-shadow: 0 0 5px #fff;}
+        .upgrade-card p { margin: 0 0 10px 0; font-size: 1.1rem; color: #aaa; }
+        .upgrade-card .cost { color: var(--term-cyan); margin-bottom: 10px; display: block; font-size: 1.3rem; font-weight: bold;}
+        .new-tag { position: absolute; top: -10px; right: -10px; background: var(--term-red); color: #fff; padding: 2px 6px; font-size: 1rem; box-shadow: 2px 2px 0 #000; animation: blink 1s infinite;}
+        
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        .tier-2, .tier-3, .tier-4, .tier-5 { display: none; }
+
+        .ui-overlay { 
+            position: absolute; bottom: 65px; left: 10px; right: 10px; 
+            display: flex; justify-content: space-between; align-items: flex-end; font-size: 1.8rem; 
+            pointer-events: none; z-index: 40; text-shadow: 2px 2px 0 #000; 
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 15px 15px 5px 15px; 
+        }
+        
+        .hotkey-bar { font-size: 1.5rem; color: #fff; opacity: 0.8; transition: all 0.2s; border-radius: 4px;}
+        .hotkey-bar span { color: var(--term-green); font-weight: bold; border: 1px solid var(--term-green); padding: 2px 6px; border-radius: 4px;}
+
+        canvas { cursor: crosshair; }
+
+        .mana-bar-container { width: 850px; height: 25px; background-color: #000; border: 2px solid var(--term-green); margin-top: 15px; display: flex; position: relative; box-shadow: 0 0 10px rgba(57, 255, 20, 0.2);}
+        #mana-bar { height: 100%; background: var(--term-cyan); width: 100%; transition: width 0.1s linear; }
+        #mana-text { position: absolute; width: 100%; text-align: center; font-size: 1.6rem; line-height: 25px; color: #000; mix-blend-mode: difference; font-weight: bold;}
+
+        #boot-log { text-align: left; width: 80%; font-size: 1.8rem; color: #889; margin-bottom: 30px; line-height: 1.6; }
+        .log-sys { color: var(--term-red); text-shadow: 0 0 5px var(--term-red);}
+        .log-cmd { color: var(--term-cyan); text-shadow: 0 0 5px var(--term-cyan);}
+        
+        #personal-best { color: var(--term-cyan); font-size: 2rem; margin-top: 15px; text-shadow: 0 0 5px var(--term-cyan); }
+    </style>
+</head>
+<body>
+    
+    <div class="game-wrapper" id="game-container">
+        <div class="crt-overlay"></div>
+        <canvas id="gameCanvas" width="850" height="540"></canvas>
+        
+        <div class="ui-overlay" id="in-game-ui" style="display: none;">
+            <div>
+                <div id="ui-faith" style="color: var(--term-green); font-size: 2.2rem; font-weight: bold;">SYS.HEALTH: 100%</div>
+                <div class="hotkey-bar" id="hotkey-1"><span>[ 1 ]</span> DEPLOY SENTRY (60 ENG | TEMP)</div>
+            </div>
+            <div id="ui-wave" style="color: #fff; opacity: 0.5;">SECTOR: 1</div>
+            <div id="ui-score" style="color: var(--term-cyan); font-size: 2.2rem;">BYTES: 0</div>
+        </div>
+
+        <div class="terminal-container" id="terminal-box">
+            <span class="prompt">C:\></span>
+            <input type="text" id="cmd-input" autocomplete="off" spellcheck="false" maxlength="20" autofocus>
+        </div>
+
+        <div id="start-screen" class="screen active">
+            <h1 class="game-title">System_Purge.exe</h1>
+            <div id="boot-log">
+                > WAITING FOR USER INPUT...<br>
+                > TO INITIATE SEQUENCE, TYPE: <span class="log-cmd">sys.boot</span> IN TERMINAL BELOW.
+            </div>
+            <div id="personal-best"></div>
+            <button id="btn-start" onclick="startGame()" style="display: none; background: var(--term-cyan);">[ INITIALIZE ]</button>
+        </div>
+
+        <div id="shop-screen" class="screen">
+            <h1 style="font-size: 3.5rem; color: #fff; margin-bottom: 5px;">TERMINAL UPLINK</h1>
+            <div id="story-text"></div>
+            <div class="currency-display" id="shop-souls">BYTES: 0</div>
+            <div class="shop-grid">
+                <div class="upgrade-card tier-1"><h3>[ CAPACITY ]</h3><p>+Max Energy</p><span class="cost" id="cost-max-mana">COST: 150</span><button id="btn-up-mana" onclick="buyUpgrade('maxMana')">INSTALL</button></div>
+                <div class="upgrade-card tier-1"><h3>[ OVERCLOCK ]</h3><p>+Energy Regen</p><span class="cost" id="cost-regen">COST: 200</span><button id="btn-up-regen" onclick="buyUpgrade('regen')">INSTALL</button></div>
+                <div class="upgrade-card tier-2" id="card-dmg"><div class="new-tag" id="tag-dmg">NEW</div><h3>[ ROOT_ACCESS ]</h3><p>+Smite Damage</p><span class="cost" id="cost-dmg">COST: 250</span><button id="btn-up-dmg" onclick="buyUpgrade('dmg')">INSTALL</button></div>
+                <div class="upgrade-card tier-3" id="card-heal"><div class="new-tag" id="tag-heal">NEW</div><h3>[ DEFRAG ]</h3><p>+30% Sys Health</p><span class="cost" id="cost-heal">COST: 100</span><button id="btn-up-heal" onclick="buyUpgrade('heal')">EXECUTE</button></div>
+                <div class="upgrade-card tier-4" id="card-auto"><div class="new-tag" id="tag-auto">NEW</div><h3>[ AUTO.EXE ]</h3><p>Spawn Base Node</p><span class="cost" id="cost-auto">COST: 300</span><button id="btn-up-auto" onclick="buyUpgrade('auto')">INSTALL</button></div>
+                <div class="upgrade-card tier-5" id="card-hack"><div class="new-tag" id="tag-hack">NEW</div><h3>[ DECRYPTOR ]</h3><p>Spawn Radar Array</p><span class="cost" id="cost-hack">COST: 500</span><button id="btn-up-hack" onclick="buyUpgrade('hack')">INSTALL</button></div>
+            </div>
+            <button onclick="startNextWave()">[ PROCEED TO SECTOR ]</button>
+        </div>
+
+        <div id="game-over-screen" class="screen">
+            <h1 style="color: var(--term-red); font-size: 6rem; text-shadow: 0 0 20px var(--term-red);">FATAL ERROR</h1>
+            <p id="final-score" style="font-size: 2.5rem; color: #fff; text-align: center; line-height: 1.5;"></p>
+            <button onclick="resetGame()" style="margin-top: 20px;">[ REBOOT ]</button>
+        </div>
+    </div>
+    
+    <div class="mana-bar-container"><div id="mana-bar"></div><div id="mana-text">100 / 100</div></div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
+        const cmdInput = document.getElementById('cmd-input'); const gameContainer = document.getElementById('game-container');
+        const terminalBox = document.getElementById('terminal-box');
+        
+        let playerStats = { maxMana: 100, manaRegen: 0.2, smiteCost: 20, smiteDmg: 1, souls: 0, faith: 100, autoAtk: 0, autoHack: 0 };
+        let upgradeCosts = { maxMana: 150, regen: 200, dmg: 250, heal: 100, auto: 300, hack: 500 };
+        
+        let gameState = 'START'; let currentMana = playerStats.maxMana;
+        let wave = 0, enemiesToSpawn = 0, spawnTimer = 0, shakeFrames = 0, frameCount = 0;
+        let enemies = [], scorchMarks = [], lightnings = [], autoLasers = [], particles = [], floatingTexts = [];
+        let damageFlash = 0; let autoNodes = []; let glitchInterval = null; 
+        
+        let turrets = []; let placementMode = false;
+        
+        let tutorialStep = 0; let tutorialWait = 60; let tutorialTarget = null;
+        let bossWarningTimer = 0;
+
+        const shortWords = ["rm", "del", "die", "kill", "cut", "sys"];
+        const longWords = ["purge", "void", "null", "drop", "wipe", "abort", "erase"];
+        const bossWords = ["kernel_panic", "format_c", "override", "rm_rf_root"];
+        
+        const loreLogs = [
+            "",
+            "[SYS]: CALIBRATION COMPLETE. COMMENCING PURGE.",
+            "[SYS]: 'ROOT_ACCESS' FIREPOWER UPGRADE UNLOCKED.",
+            "[SYS]: DAMAGE SUSTAINED. 'DEFRAG' REPAIR UTILITY COMPILED.",
+            "[SYS]: DAEMON 'AUTO.EXE' HAS BEEN UNLOCKED. AUTOMATION READY.",
+            "[SYS]: WARNING: MASSIVE ANOMALY DETECTED IN NEXT SECTOR.",
+            "[SYS]: DAEMON 'DECRYPTOR' HAS BEEN COMPILED. RADAR ONLINE.",
+            "[SYS]: THE SWARM IS ADAPTING. PROCEED WITH CAUTION."
+        ];
+
+        let highScore = localStorage.getItem('sysPurgeHighScore') || 0;
+        if (highScore > 0) document.getElementById('personal-best').textContent = `BEST SECTOR REACHED: ${highScore}`;
+
+        document.querySelector('.game-wrapper').addEventListener('click', () => { cmdInput.focus(); });
+
+        let focusMode = false;
+        cmdInput.addEventListener('input', () => {
+            if (gameState === 'PLAYING') {
+                if (cmdInput.value.length > 0) { 
+                    focusMode = true; placementMode = false; 
+                    gameContainer.classList.add('focus-mode'); gameContainer.classList.remove('placement-mode'); 
+                } else { 
+                    focusMode = false; gameContainer.classList.remove('focus-mode'); 
+                }
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (gameState === 'PLAYING' && e.key === '1' && cmdInput.value === '') {
+                e.preventDefault(); 
+                placementMode = !placementMode;
+                if (placementMode) gameContainer.classList.add('placement-mode');
+                else gameContainer.classList.remove('placement-mode');
+            }
+        });
+
+        cmdInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const cmd = this.value.trim().toLowerCase(); this.value = '';
+                focusMode = false; gameContainer.classList.remove('focus-mode');
+                if (cmd === '') return;
+
+                if (gameState === 'START') {
+                    if (cmd === 'sys.boot') {
+                        document.getElementById('boot-log').innerHTML += `<br><br><span class="log-cmd">C:\\> sys.boot</span><br><span class="log-sys">[SYS]: CORE AWAKENED...</span><br>> RUNNING CALIBRATION SEQUENCE...`;
+                        setTimeout(() => document.getElementById('btn-start').style.display = 'inline-block', 1200);
+                    } else { document.getElementById('boot-log').innerHTML += `<br>> ERROR: COMMAND NOT RECOGNIZED.`; }
+                    return;
+                }
+
+                if (gameState !== 'PLAYING') return;
+                let commandSuccessful = false;
+
+                if (cmd === 'sys.clear()') {
+                    if (currentMana >= 50) {
+                        currentMana -= 50; commandSuccessful = true; shakeFrames = 10;
+                        addFloatingText(canvas.width/2, canvas.height/2, "SYSTEM CLEARED", "#00f3ff");
+                        for (let i = enemies.length - 1; i >= 0; i--) {
+                            if (!enemies[i].shielded && enemies[i].type !== 'boss') {
+                                createExplosion(enemies[i].x, enemies[i].y, enemies[i].color, 30);
+                                playerStats.souls += enemies[i].maxHp * 15; enemies.splice(i, 1);
+                            }
+                        }
+                    } else { addFloatingText(canvas.width/2, canvas.height/2, "OUT OF MANA", "#ff003c"); }
+                } else {
+                    let targetIndex = -1; let maxX = -Infinity;
+                    for (let i = 0; i < enemies.length; i++) {
+                        if (enemies[i].shielded && enemies[i].word === cmd) {
+                            if (enemies[i].x > maxX) { maxX = enemies[i].x; targetIndex = i; }
+                        }
+                    }
+
+                    if (targetIndex !== -1) {
+                        const target = enemies[targetIndex];
+                        createExplosion(target.x, target.y, "#fff", target.type === 'boss' ? 100 : 50); 
+                        playerStats.souls += target.maxHp * 30; 
+                        addFloatingText(target.x, target.y, "DECRYPTED", "#fff");
+                        enemies.splice(targetIndex, 1);
+                        commandSuccessful = true;
+                    }
+                }
+
+                if (!commandSuccessful && wave > 0) { // No penalty during tutorial
+                    shakeFrames = 5; currentMana -= 10; 
+                    addFloatingText(canvas.width/2, canvas.height/2 + 50, "SYNTAX ERROR: -10 ENG", "#ff003c");
+                    document.getElementById('mana-bar').style.background = "#ff003c";
+                    setTimeout(() => document.getElementById('mana-bar').style.background = "var(--term-cyan)", 150);
+                }
+            }
+        });
+
+        function resetGame() {
+            playerStats = { maxMana: 100, manaRegen: 0.2, smiteCost: 20, smiteDmg: 1, souls: 0, faith: 100, autoAtk: 0, autoHack: 0 };
+            upgradeCosts = { maxMana: 150, regen: 200, dmg: 250, heal: 100, auto: 300, hack: 500 };
+            currentMana = playerStats.maxMana; wave = 0; tutorialStep = 0; tutorialWait = 60; damageFlash = 0; autoNodes = []; turrets = []; bossWarningTimer = 0; spawnTimer = 0;
+            document.getElementById('hotkey-1').style.color = "";
+            terminalBox.style.boxShadow = "none";
+            
+            ['dmg', 'heal', 'auto', 'hack'].forEach(id => {
+                document.getElementById(`card-${id}`).style.display = 'none';
+                document.getElementById(`tag-${id}`).style.display = 'block';
+            });
+            
+            document.getElementById('game-over-screen').classList.remove('active');
+            gameState = 'START';
+            document.getElementById('boot-log').innerHTML = `> WAITING FOR USER INPUT...<br>> TO INITIATE SEQUENCE, TYPE: <span class="log-cmd">sys.boot</span> IN TERMINAL BELOW.`;
+            document.getElementById('btn-start').style.display = 'none';
+            if (highScore > 0) document.getElementById('personal-best').textContent = `BEST SECTOR REACHED: ${highScore}`;
+            document.getElementById('start-screen').classList.add('active');
+            cmdInput.value = ''; cmdInput.focus();
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').classList.remove('active');
+            document.getElementById('in-game-ui').style.display = 'flex';
+            
+            wave = 0; tutorialStep = 0; tutorialWait = 60; spawnTimer = 0;
+            gameState = 'PLAYING';
+            enemies = []; currentMana = playerStats.maxMana; damageFlash = 0;
+            document.getElementById('ui-wave').textContent = `SECTOR: 0`;
+            cmdInput.focus();
+        }
+
+        function startNextWave() {
+            document.getElementById('shop-screen').classList.remove('active');
+            gameState = 'PLAYING'; wave++; spawnTimer = 0;
+            enemies = []; scorchMarks = []; particles = []; floatingTexts = []; autoLasers = [];
+            
+            if (wave > 0 && wave % 5 === 0) {
+                enemiesToSpawn = 1; 
+                bossWarningTimer = 180; 
+            } else { 
+                enemiesToSpawn = 5 + (wave * 3); 
+                bossWarningTimer = 0;
+            }
+            
+            currentMana = playerStats.maxMana; damageFlash = 0; placementMode = false; gameContainer.classList.remove('placement-mode');
+            document.getElementById('ui-wave').textContent = `SECTOR: ${wave}`; cmdInput.focus();
+        }
+
+        function openShop() {
+            gameState = 'SHOP'; focusMode = false; gameContainer.classList.remove('focus-mode'); placementMode = false; gameContainer.classList.remove('placement-mode');
+            document.getElementById('shop-screen').classList.add('active');
+            document.getElementById('story-text').textContent = loreLogs[wave] || `[SYS]: SECTOR ${wave} CLEARED. ESCALATION IMMINENT.`;
+            
+            if (wave >= 2) document.getElementById('card-dmg').style.display = 'block';
+            if (wave >= 3) document.getElementById('card-heal').style.display = 'block';
+            if (wave >= 4) document.getElementById('card-auto').style.display = 'block';
+            if (wave >= 6) document.getElementById('card-hack').style.display = 'block';
+
+            updateShopUI();
+        }
+
+        function updateShopUI() {
+            document.getElementById('shop-souls').textContent = `BYTES: ${playerStats.souls}`;
+            document.getElementById('cost-max-mana').textContent = `COST: ${upgradeCosts.maxMana}`;
+            document.getElementById('cost-regen').textContent = `COST: ${upgradeCosts.regen}`;
+            document.getElementById('cost-dmg').textContent = `COST: ${upgradeCosts.dmg}`;
+            document.getElementById('cost-heal').textContent = `COST: ${upgradeCosts.heal}`;
+            document.getElementById('cost-auto').textContent = `COST: ${upgradeCosts.auto}`;
+            document.getElementById('cost-hack').textContent = `COST: ${upgradeCosts.hack}`;
+
+            document.getElementById('btn-up-mana').disabled = playerStats.souls < upgradeCosts.maxMana;
+            document.getElementById('btn-up-regen').disabled = playerStats.souls < upgradeCosts.regen;
+            document.getElementById('btn-up-dmg').disabled = playerStats.souls < upgradeCosts.dmg;
+            document.getElementById('btn-up-heal').disabled = playerStats.souls < upgradeCosts.heal || playerStats.faith >= 100;
+            document.getElementById('btn-up-auto').disabled = playerStats.souls < upgradeCosts.auto;
+            document.getElementById('btn-up-hack').disabled = playerStats.souls < upgradeCosts.hack;
+        }
+
+        function buyUpgrade(type) {
+            if (playerStats.souls >= upgradeCosts[type]) {
+                playerStats.souls -= upgradeCosts[type];
+                if (type === 'maxMana') { playerStats.maxMana += 25; upgradeCosts.maxMana = Math.floor(upgradeCosts.maxMana * 1.4); }
+                if (type === 'regen') { playerStats.manaRegen += 0.15; upgradeCosts.regen = Math.floor(upgradeCosts.regen * 1.5); }
+                if (type === 'dmg') { playerStats.smiteDmg += 1; upgradeCosts.dmg = Math.floor(upgradeCosts.dmg * 1.6); document.getElementById('tag-dmg').style.display = 'none'; }
+                if (type === 'heal') { playerStats.faith = Math.min(100, playerStats.faith + 30); upgradeCosts.heal = Math.floor(upgradeCosts.heal * 1.3); document.getElementById('tag-heal').style.display = 'none';}
+                if (type === 'auto') { 
+                    playerStats.autoAtk++; upgradeCosts.auto = Math.floor(upgradeCosts.auto * 1.8); document.getElementById('tag-auto').style.display = 'none';
+                    autoNodes.push({ angle: Math.random() * Math.PI * 2, radius: 70 + (playerStats.autoAtk * 10), speed: 0.02 + (Math.random() * 0.03) });
+                }
+                if (type === 'hack') { playerStats.autoHack++; upgradeCosts.hack = Math.floor(upgradeCosts.hack * 2.0); document.getElementById('tag-hack').style.display = 'none';}
+                
+                document.getElementById('shop-souls').style.color = "#fff";
+                setTimeout(() => document.getElementById('shop-souls').style.color = "var(--term-cyan)", 150);
+                updateShopUI();
+            }
+        }
+
+        function spawnEnemy() {
+            const rand = Math.random(); let type = 'bug'; 
+            if (wave > 1 && rand < 0.3) type = 'worm';
+            if (wave > 1 && rand > 0.75) type = 'trojan'; 
+
+            let e = { x: -40, y: Math.random() * (canvas.height - 150) + 75, type: type, shielded: false };
+
+            if (type === 'worm') {
+                e.speed = Math.random() * 1.5 + 2.0 + (wave * 0.05); e.size = 12; e.hp = 1; e.maxHp = 1; e.color = "#ff003c"; 
+            } else if (type === 'trojan') {
+                e.speed = 0.4 + (wave * 0.02); e.size = 28; e.hp = 1; e.maxHp = 6; e.color = "#ff8800"; e.shielded = true; 
+                const dict = wave < 4 ? shortWords : shortWords.concat(longWords);
+                e.word = dict[Math.floor(Math.random() * dict.length)];
+            } else {
+                let healthBonus = Math.floor(wave/3);
+                e.speed = Math.random() * 1.0 + 0.8 + (wave * 0.05); e.size = 20; e.hp = 2 + healthBonus; e.maxHp = 2 + healthBonus; e.color = "#d900ff"; 
+            }
+            enemies.push(e);
+            enemiesToSpawn--; // <-- FIX: Decrement the spawn counter!
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (gameState !== 'PLAYING') return;
+            const rect = canvas.getBoundingClientRect(); const clickX = e.clientX - rect.left; const clickY = e.clientY - rect.top;
+
+            if (focusMode) {
+                shakeFrames = 3; addFloatingText(clickX, clickY, "SYS.LOCKED", "#ff003c");
+                document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)";
+                setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150);
+                return;
+            }
+
+            if (placementMode) {
+                if (currentMana >= 60) {
+                    currentMana -= 60;
+                    turrets.push({ x: clickX, y: clickY, hp: 8, maxHp: 8, cooldown: 0, size: 16, angle: 0 });
+                    placementMode = false; gameContainer.classList.remove('placement-mode');
+                    addFloatingText(clickX, clickY, "SENTRY ONLINE", "#39ff14");
+                    createExplosion(clickX, clickY, "#39ff14", 10);
+                } else {
+                    addFloatingText(clickX, clickY, "INSUFFICIENT ENG", "#ff003c");
+                    placementMode = false; gameContainer.classList.remove('placement-mode');
+                }
+                return; 
+            }
+
+            if (currentMana < playerStats.smiteCost) {
+                document.getElementById('mana-bar').style.background = "#ff003c";
+                setTimeout(() => document.getElementById('mana-bar').style.background = "var(--term-cyan)", 150); return;
+            }
+
+            currentMana -= playerStats.smiteCost; 
+            
+            let pwr = playerStats.smiteDmg;
+            shakeFrames = 3 + (pwr * 2); 
+            lightnings.push({ x: clickX, y: clickY, life: 10 + (pwr*5), thickness: pwr }); 
+            scorchMarks.push({ x: clickX, y: clickY, life: 60 + (pwr*20), size: pwr });
+            createExplosion(clickX, clickY, "#00f3ff", 10 + (pwr*5)); 
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                // FIX: Increased the base hit detection radius from 45 to 60 for easier clicking
+                if (Math.hypot(enemy.x - clickX, enemy.y - clickY) < 60 + enemy.size + (pwr*5)) {
+                    if (enemy.shielded) {
+                        addFloatingText(enemy.x, enemy.y, "ENCRYPTED", "#ff003c"); createExplosion(enemy.x, enemy.y, "#ff003c", 10); continue; 
+                    }
+                    
+                    enemy.hp -= playerStats.smiteDmg; 
+                    
+                    if (enemy.hp <= 0) {
+                        createExplosion(enemy.x, enemy.y, enemy.color, 25); enemies.splice(i, 1);
+                        const reward = enemy.maxHp * 15; playerStats.souls += reward; 
+                        addFloatingText(enemy.x, enemy.y, `+${reward}`, "#fff");
+                    } else {
+                        createExplosion(enemy.x, enemy.y, "#fff", 10); addFloatingText(enemy.x, enemy.y, `HIT (-${playerStats.smiteDmg})`, "#fff");
+                    }
+                }
+            }
+        });
+
+        function createExplosion(x, y, color, amount) {
+            for (let i = 0; i < amount; i++) particles.push({ x, y, vx: (Math.random() - 0.5)*15, vy: (Math.random() - 0.5)*15, life: 1.0, color, size: Math.floor(Math.random()*5+2)});
+        }
+        function addFloatingText(x, y, text, color) { floatingTexts.push({ x, y, text, color, life: 1.0, vy: -1.0 }); }
+
+        function drawBackgroundGrid() {
+            ctx.strokeStyle = "rgba(0, 243, 255, 0.05)"; ctx.lineWidth = 1;
+            for(let i = 0; i < canvas.width; i+=40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
+            for(let i = 0; i < canvas.height; i+=40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
+        }
+
+        function drawServer(timeScale) {
+            let hardwareModules = Math.floor((playerStats.maxMana - 100) / 25);
+            let baseWidth = 100 + (hardwareModules * 6); let baseX = canvas.width - baseWidth;
+            
+            let shieldOpacity = Math.max(0.1, playerStats.faith / 200);
+            ctx.fillStyle = `rgba(0, 243, 255, ${shieldOpacity})`;
+            if (damageFlash > 0) ctx.fillStyle = `rgba(255, 0, 60, ${damageFlash})`;
+            ctx.fillRect(baseX - 15, 30, 8, canvas.height - 60);
+            
+            ctx.fillStyle = "#0a1118"; ctx.strokeStyle = "#1a2a3a"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(baseX + 10, 40); ctx.lineTo(baseX + baseWidth, 40);
+            ctx.lineTo(baseX + baseWidth, canvas.height - 40); ctx.lineTo(baseX + 10, canvas.height - 40);
+            ctx.lineTo(baseX - 5, canvas.height / 2 + 80); ctx.lineTo(baseX - 5, canvas.height / 2 - 80);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            
+            ctx.fillStyle = "#111b24";
+            for(let m=0; m < hardwareModules; m++) {
+                ctx.fillRect(baseX + 15, 60 + (m * 35), baseWidth - 30, 20);
+                if (Math.random() > 0.5) { ctx.fillStyle = "#00f3ff"; ctx.fillRect(baseX + 20, 65 + (m * 35), 5, 10); ctx.fillStyle = "#111b24"; }
+            }
+
+            if (playerStats.autoHack > 0) {
+                let ringSize = (frameCount % 120) / 120;
+                ctx.strokeStyle = `rgba(0, 243, 255, ${1.0 - ringSize})`; ctx.lineWidth = 2 + (playerStats.autoHack);
+                ctx.beginPath(); ctx.arc(baseX + baseWidth/2, canvas.height/2, ringSize * (150 + playerStats.autoHack * 50), 0, Math.PI * 2); ctx.stroke();
+            }
+
+            let rc = "#39ff14"; if(playerStats.faith <= 50) rc = "#ff8800"; if(playerStats.faith <= 20) rc = "#ff003c";
+            ctx.fillStyle = rc; ctx.shadowBlur = 20; ctx.shadowColor = rc;
+            let pulse = Math.sin(frameCount * (0.05 + (100 - playerStats.faith)*0.002)) * 5;
+            ctx.beginPath(); ctx.arc(baseX + baseWidth/2, canvas.height/2, 25 + pulse, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0; 
+            
+            ctx.fillStyle = focusMode ? "#ff003c" : "#39ff14";
+            autoNodes.forEach((node) => {
+                node.angle += node.speed * timeScale;
+                let nx = (baseX + baseWidth/2) + Math.cos(node.angle) * node.radius;
+                let ny = (canvas.height/2) + Math.sin(node.angle) * node.radius;
+                node.x = nx; node.y = ny;
+
+                ctx.beginPath(); ctx.arc(nx, ny, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
+                ctx.strokeStyle = "rgba(57, 255, 20, 0.2)"; ctx.beginPath(); ctx.moveTo(nx, ny); ctx.lineTo(baseX + baseWidth/2, canvas.height/2); ctx.stroke();
+            });
+        }
+
+        function drawEnemy(e) {
+            ctx.fillStyle = e.color; ctx.fillRect(e.x - e.size/2, e.y - e.size/2, e.size, e.size);
+            let glitchOff = (frameCount % 4 === 0) ? e.size/2 : -e.size/2;
+            ctx.fillRect(e.x + glitchOff, e.y - e.size/4, e.size/2, e.size/2); ctx.fillRect(e.x - e.size/4, e.y + glitchOff, e.size/2, e.size/2);
+            ctx.fillStyle = "#fff"; ctx.fillRect(e.x - 2, e.y - 2, 4, 4);
+
+            if (e.shielded) {
+                ctx.strokeStyle = "#ff003c"; ctx.lineWidth = e.type === 'boss' ? 4 : 2; 
+                ctx.strokeRect(e.x - e.size, e.y - e.size, e.size*2, e.size*2);
+                ctx.fillStyle = "rgba(255,0,60,0.2)"; ctx.fillRect(e.x - e.size, e.y - e.size, e.size*2, e.size*2);
+                ctx.fillStyle = "#fff"; ctx.font = e.type === 'boss' ? "bold 30px 'VT323', monospace" : "bold 20px 'VT323', monospace"; 
+                ctx.textAlign = "center"; ctx.fillText(e.word, e.x, e.y - e.size - 10);
+            }
+        }
+
+        function triggerDeathSequence() {
+            playerStats.faith = 0; gameState = 'DEATH_SEQ'; focusMode = false; gameContainer.classList.remove('focus-mode');
+            document.getElementById('in-game-ui').style.display = 'none'; cmdInput.blur();
+            
+            let glitchTicks = 0;
+            glitchInterval = setInterval(() => {
+                ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,0,60,0.3)" : "rgba(0,0,0,0.8)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#fff"; ctx.font = "bold 40px 'VT323'";
+                for(let i=0; i<5; i++) ctx.fillText("CRITICAL FAILURE", Math.random() * canvas.width, Math.random() * canvas.height);
+                glitchTicks++;
+                if (glitchTicks > 30) { clearInterval(glitchInterval); showGameOverScreen(); }
+            }, 50);
+        }
+
+        function showGameOverScreen() {
+            gameState = 'GAMEOVER'; let finalScoreBox = document.getElementById('final-score');
+            let sectorsCleared = wave - 1;
+            if (sectorsCleared > highScore) {
+                localStorage.setItem('sysPurgeHighScore', sectorsCleared); highScore = sectorsCleared;
+                finalScoreBox.innerHTML = `SECTORS CLEARED: ${sectorsCleared}<br><span style="color:var(--term-green);">NEW SYSTEM RECORD!</span>`;
+            } else {
+                finalScoreBox.innerHTML = `SECTORS CLEARED: ${sectorsCleared}<br><span style="font-size:1.5rem; color:#aaa;">BEST: ${highScore}</span>`;
+            }
+            document.getElementById('game-over-screen').classList.add('active');
+        }
+
+        function handleTutorialLogic(timeScale) {
+            tutorialWait -= timeScale;
+            
+            playerStats.faith = 100;
+            currentMana = playerStats.maxMana;
+            
+            if (tutorialStep === 0 && tutorialWait <= 0) {
+                tutorialTarget = { x: 150, y: canvas.height/2 - 80, type: 'bug', shielded: false, speed: 0, size: 25, hp: 1, maxHp: 1, color: "#d900ff" };
+                enemies.push(tutorialTarget); tutorialStep = 1; tutorialWait = 60; 
+            }
+            if (tutorialStep === 1 && tutorialWait <= 0) {
+                ctx.fillStyle = "#00f3ff"; ctx.font = "bold 30px 'VT323'"; ctx.textAlign = "left";
+                ctx.fillText("<- CLICK TO PURGE", 220, canvas.height/2 - 70);
+                
+                let pulse = (frameCount % 60) / 60;
+                ctx.strokeStyle = `rgba(0, 243, 255, ${1 - pulse})`; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(tutorialTarget.x, tutorialTarget.y, 30 + (pulse * 40), 0, Math.PI*2); ctx.stroke();
+
+                if (enemies.length === 0) { tutorialStep = 2; tutorialWait = 90; } 
+            }
+            if (tutorialStep === 2 && tutorialWait <= 0) {
+                tutorialTarget = { x: 150, y: canvas.height/2 + 80, type: 'trojan', shielded: true, speed: 0, size: 25, hp: 1, maxHp: 6, color: "#ff8800", word: 'sys' };
+                enemies.push(tutorialTarget); tutorialStep = 3; tutorialWait = 60;
+            }
+            if (tutorialStep === 3 && tutorialWait <= 0) {
+                ctx.fillStyle = "#ff003c"; ctx.font = "bold 30px 'VT323'"; ctx.textAlign = "left";
+                ctx.fillText("<- TYPE 'sys' AND PRESS ENTER", 220, canvas.height/2 + 90);
+                
+                terminalBox.style.boxShadow = (frameCount % 60 < 30) ? "inset 0 0 20px rgba(255, 0, 60, 0.8)" : "none";
+                
+                let pulse = (frameCount % 60) / 60;
+                ctx.strokeStyle = `rgba(255, 0, 60, ${1 - pulse})`; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(tutorialTarget.x, tutorialTarget.y, 40 + (pulse * 50), 0, Math.PI*2); ctx.stroke();
+
+                if (enemies.length === 0) { terminalBox.style.boxShadow = "none"; tutorialStep = 4; tutorialWait = 90; }
+            }
+            if (tutorialStep === 4 && tutorialWait <= 0) {
+                tutorialStep = 5; 
+            }
+            if (tutorialStep === 5) {
+                ctx.fillStyle = "#39ff14"; ctx.font = "bold 30px 'VT323'"; ctx.textAlign = "center";
+                ctx.fillText("PRESS [ 1 ] TO ENTER PLACEMENT MODE", canvas.width/2, canvas.height/2 - 40);
+                
+                const h1 = document.getElementById('hotkey-1');
+                h1.style.color = (frameCount % 30 < 15) ? "#fff" : "#39ff14";
+                h1.style.boxShadow = (frameCount % 60 < 30) ? "0 0 15px rgba(57, 255, 20, 0.5)" : "none";
+
+                if (placementMode) { 
+                    tutorialStep = 6; 
+                    h1.style.color = ""; 
+                    h1.style.boxShadow = "none";
+                }
+            }
+            if (tutorialStep === 6) {
+                ctx.fillStyle = "#39ff14"; ctx.font = "bold 30px 'VT323'"; ctx.textAlign = "center";
+                ctx.fillText("CLICK ANYWHERE ON THE GRID TO DEPLOY SENTRY", canvas.width/2, canvas.height/2 - 40);
+                
+                if (turrets.length > 0) {
+                    tutorialStep = 7; tutorialWait = 120;
+                } else if (!placementMode) {
+                    tutorialStep = 5; 
+                }
+            }
+            if (tutorialStep === 7) {
+                if (tutorialWait > 0) {
+                    ctx.fillStyle = "#39ff14"; ctx.font = "bold 40px 'VT323'"; ctx.textAlign = "center";
+                    ctx.fillText("CALIBRATION COMPLETE", canvas.width/2, canvas.height/2);
+                } else {
+                    startNextWave();
+                }
+            }
+        }
+
+        function gameLoop() {
+            requestAnimationFrame(gameLoop);
+            if (gameState === 'DEATH_SEQ') return; 
+            
+            const timeScale = focusMode ? 0.15 : 1.0;
+
+            ctx.fillStyle = focusMode ? "rgba(0, 8, 20, 0.4)" : "rgba(2, 4, 8, 1.0)"; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (gameState !== 'PLAYING') return;
+            frameCount++;
+
+            drawBackgroundGrid();
+            drawServer(timeScale);
+
+            if (wave === 0) {
+                handleTutorialLogic(timeScale);
+            } 
+            
+            if (wave > 0 && playerStats.autoAtk > 0 && frameCount % Math.floor(Math.max(10, 120 - (playerStats.autoAtk * 15)) / timeScale) === 0) {
+                let targets = enemies.filter(e => !e.shielded);
+                if (targets.length > 0 && autoNodes.length > 0) {
+                    let target = targets[Math.floor(Math.random() * targets.length)];
+                    let firingNode = autoNodes[Math.floor(Math.random() * autoNodes.length)];
+                    autoLasers.push({sx: firingNode.x, sy: firingNode.y, tx: target.x, ty: target.y, life: 10, color: "#39ff14"});
+                    target.hp--;
+                    if (target.hp <= 0) { createExplosion(target.x, target.y, target.color, 25); playerStats.souls += target.maxHp * 15; enemies.splice(enemies.indexOf(target), 1); }
+                }
+            }
+
+            for (let i = turrets.length - 1; i >= 0; i--) {
+                let t = turrets[i];
+                
+                if (wave > 0) {
+                    t.hp -= timeScale * 0.015; 
+                }
+
+                let target = enemies.find(e => !e.shielded && Math.hypot(e.x - t.x, e.y - t.y) < 200);
+                if (target) {
+                    t.angle = Math.atan2(target.y - t.y, target.x - t.x);
+                }
+
+                ctx.fillStyle = "#050a0f";
+                ctx.strokeStyle = "#39ff14";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = "#00f3ff";
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.size * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.save();
+                ctx.translate(t.x, t.y);
+                ctx.rotate(t.angle);
+                ctx.fillStyle = "#39ff14";
+                ctx.fillRect(t.size * 0.3, -4, t.size * 0.9, 8);
+                ctx.restore();
+
+                ctx.fillStyle = "#ff003c"; ctx.fillRect(t.x - 12, t.y + 22, 24, 4);
+                ctx.fillStyle = "#39ff14"; ctx.fillRect(t.x - 12, t.y + 22, 24 * (t.hp / t.maxHp), 4);
+
+                t.cooldown -= timeScale;
+                if (t.cooldown <= 0 && target) {
+                    target.hp -= 1;
+                    autoLasers.push({sx: t.x + Math.cos(t.angle) * (t.size*1.2), sy: t.y + Math.sin(t.angle) * (t.size*1.2), tx: target.x, ty: target.y, life: 10, color: "#39ff14"});
+                    t.cooldown = 45; 
+                    if (target.hp <= 0) { createExplosion(target.x, target.y, target.color, 20); playerStats.souls += target.maxHp * 15; enemies.splice(enemies.indexOf(target), 1); }
+                }
+
+                for (let j = 0; j < enemies.length; j++) {
+                    if (Math.hypot(enemies[j].x - t.x, enemies[j].y - t.y) < enemies[j].size + t.size) {
+                        if (wave > 0) t.hp -= timeScale * 0.08; 
+                        enemies[j].x -= 0.5 * timeScale; 
+                    }
+                }
+
+                if (t.hp <= 0) {
+                    createExplosion(t.x, t.y, "#39ff14", 30); turrets.splice(i, 1);
+                }
+            }
+
+            if (wave > 0) {
+                spawnTimer -= timeScale; 
+
+                if (bossWarningTimer > 0) {
+                    bossWarningTimer -= timeScale;
+                    shakeFrames = 2; 
+                    
+                    if (frameCount % 20 < 10) {
+                        ctx.fillStyle = "rgba(255, 0, 60, 0.2)";
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    }
+
+                    ctx.fillStyle = "#ff003c"; ctx.font = "bold 60px 'VT323'"; ctx.textAlign = "center";
+                    ctx.shadowBlur = 10; ctx.shadowColor = "#ff003c";
+                    ctx.fillText("WARNING: KERNEL PANIC IMMINENT", canvas.width/2, canvas.height/2);
+                    ctx.shadowBlur = 0; 
+
+                    if (bossWarningTimer <= 0) {
+                        
+                        let e = { 
+                            x: -80, y: canvas.height/2, type: 'boss', shielded: true, 
+                            speed: 0.15 + (wave * 0.01), size: 60, hp: 1, maxHp: 50, color: "#ff003c",
+                            word: bossWords[Math.floor(Math.random() * bossWords.length)]
+                        };
+                        enemies.push(e);
+                        enemiesToSpawn--; 
+                    }
+                } else if (enemiesToSpawn > 0 && spawnTimer <= 0) {
+                    spawnEnemy(); spawnTimer = Math.max(40, 110 - (wave * 5)); 
+                } else if (enemiesToSpawn <= 0 && enemies.length === 0) {
+                    setTimeout(openShop, 1200); gameState = 'WAITING'; 
+                }
+            }
+
+            ctx.save();
+            if (shakeFrames > 0) { ctx.translate((Math.random() - 0.5)*10, (Math.random() - 0.5)*10); shakeFrames--; }
+
+            if (focusMode) {
+                ctx.fillStyle = "rgba(0, 243, 255, 0.2)"; ctx.font = "bold 60px 'VT323', monospace"; ctx.textAlign = "center";
+                ctx.fillText("MOUSE LOCKED", canvas.width/2, canvas.height/2 + 20);
+            }
+
+            for (let i = autoLasers.length - 1; i >= 0; i--) {
+                const l = autoLasers[i]; ctx.strokeStyle = l.color; ctx.lineWidth = l.life / 2;
+                ctx.beginPath(); ctx.moveTo(l.sx, l.sy); ctx.lineTo(l.tx, l.ty); ctx.stroke();
+                l.life -= timeScale; if(l.life <= 0) autoLasers.splice(i, 1);
+            }
+
+            for (let i = scorchMarks.length - 1; i >= 0; i--) {
+                const mark = scorchMarks[i]; ctx.fillStyle = `rgba(0, 243, 255, ${mark.life / 200})`; ctx.font = `${15 + (mark.size*5)}px monospace`;
+                ctx.fillText("0x00", mark.x - (10*mark.size), mark.y); mark.life -= timeScale; if (mark.life <= 0) scorchMarks.splice(i, 1);
+            }
+
+            let fortressFrontLine = canvas.width - (100 + Math.floor((playerStats.maxMana - 100) / 25) * 6) - 15;
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                enemy.x += enemy.speed * timeScale;
+                // FIX: Reduced enemy up/down jitter from 10 to 4 so you can actually click them
+                if (frameCount % 10 === 0 && !enemy.shielded && enemy.type !== 'boss') enemy.y += ((Math.random() - 0.5) * 4) * timeScale;
+
+                if (enemy.type === 'boss' && frameCount % 120 === 0) {
+                    enemies.push({ x: enemy.x + 50, y: enemy.y + (Math.random()*80 - 40), type: 'worm', shielded: false, speed: 2.5 + (wave*0.05), size: 12, hp: 1, maxHp: 1, color: "#ff003c" });
+                }
+
+                drawEnemy(enemy);
+
+                if (enemy.x > fortressFrontLine) { 
+                    playerStats.faith -= enemy.maxHp * 5; createExplosion(enemy.x, enemy.y, enemy.color, 50);
+                    enemies.splice(i, 1); shakeFrames = 15; damageFlash = 0.8; 
+                    if (playerStats.faith <= 0) { triggerDeathSequence(); return; }
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i]; p.x += p.vx * timeScale; p.y += p.vy * timeScale; p.vx *= 0.85; p.vy *= 0.85; p.life -= 0.04 * timeScale; 
+                ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.life); ctx.fillRect(p.x, p.y, p.size, p.size); 
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+            ctx.globalAlpha = 1.0;
+
+            for (let i = lightnings.length - 1; i >= 0; i--) {
+                const bolt = lightnings[i]; ctx.fillStyle = `rgba(0, 243, 255, ${bolt.life/15})`; ctx.fillRect(bolt.x - (20*bolt.thickness), 0, (40*bolt.thickness), bolt.y); 
+                ctx.fillStyle = `rgba(255, 255, 255, ${bolt.life/15})`; ctx.fillRect(bolt.x - (8*bolt.thickness), 0, (16*bolt.thickness), bolt.y); 
+                bolt.life -= timeScale; if (bolt.life <= 0) lightnings.splice(i, 1);
+            }
+
+            ctx.font = "bold 24px 'VT323', monospace"; ctx.textAlign = "center";
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i]; ctx.fillStyle = ft.color; ctx.globalAlpha = ft.life; ctx.fillText(ft.text, ft.x, ft.y);
+                ft.y += ft.vy * timeScale; ft.life -= 0.03 * timeScale; if (ft.life <= 0) floatingTexts.splice(i, 1);
+            }
+            ctx.globalAlpha = 1.0; 
+            
+            if (damageFlash > 0) {
+                ctx.fillStyle = `rgba(255, 0, 60, ${damageFlash * 0.4})`; ctx.fillRect(0, 0, canvas.width, canvas.height); damageFlash -= 0.05;
+            }
+            
+            ctx.restore(); 
+
+            if (currentMana < playerStats.maxMana) {
+                currentMana += playerStats.manaRegen; if (currentMana > playerStats.maxMana) currentMana = playerStats.maxMana;
+            }
+            
+            document.getElementById('ui-faith').textContent = `SYS.HEALTH: ${playerStats.faith}%`;
+            document.getElementById('ui-score').textContent = `BYTES: ${playerStats.souls}`;
+            document.getElementById('mana-bar').style.width = `${(Math.max(0, currentMana) / playerStats.maxMana) * 100}%`;
+            document.getElementById('mana-text').textContent = `ENERGY: ${Math.floor(Math.max(0, currentMana))} / ${playerStats.maxMana}`;
+            
+            const uiFaith = document.getElementById('ui-faith');
+            if(playerStats.faith <= 30) { uiFaith.style.color = "var(--term-red)"; }
+            else if(playerStats.faith <= 60) { uiFaith.style.color = "#ff8800"; }
+            else { uiFaith.style.color = "var(--term-green)"; }
+        }
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
