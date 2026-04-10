@@ -10,6 +10,7 @@
             --term-green: #39ff14;
             --term-red: #ff003c;
             --term-cyan: #00f3ff;
+            --term-orange: #ff8800;
             --bg-dark: #050a0f;
         }
 
@@ -33,7 +34,8 @@
             border: 4px solid #112; box-shadow: 0 0 30px rgba(0, 243, 255, 0.1);
             display: flex; flex-direction: column; transition: box-shadow 0.3s, border-color 0.3s;
             border-radius: 8px; overflow: hidden;
-            max-width: 100vw; max-height: 100vh;
+            max-width: 100vw; 
+            max-height: calc(100vh - 60px); /* Fixed for tablet layout */
         }
         
         .game-wrapper.focus-mode { box-shadow: 0 0 50px rgba(0, 243, 255, 0.5); border-color: var(--term-cyan); }
@@ -48,7 +50,7 @@
         .terminal-container {
             height: 60px; background: #020406; border-top: 2px solid #112;
             display: flex; align-items: center; padding: 0 15px; font-size: 2.2rem; z-index: 60; box-sizing: border-box;
-            transition: all 0.3s;
+            transition: all 0.3s; position: absolute; bottom: 0; width: 100%;
         }
         .focus-mode .terminal-container { background: #001a33; border-color: var(--term-cyan); border-top: 2px solid var(--term-cyan); }
         .focus-mode #cmd-input { color: #fff; text-shadow: 0 0 5px #fff; }
@@ -61,16 +63,19 @@
         }
 
         .screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 540px;
+            position: absolute; top: 0; left: 0; width: 100%; 
+            bottom: 60px; /* Snaps to above terminal */
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             background: rgba(0, 2, 5, 0.95); z-index: 70; opacity: 0; pointer-events: none; 
             transition: opacity 0.4s ease-in-out; backdrop-filter: blur(2px);
+            overflow-y: auto; /* Allows scrolling if squeezed on tablets */
+            padding: 20px 0; box-sizing: border-box;
         }
         .screen.active { opacity: 1; pointer-events: all; }
         
         .game-title { margin: 0 0 20px 0; color: var(--term-cyan); font-size: 4.5rem; text-transform: uppercase; letter-spacing: 2px; text-shadow: 4px 4px 0px #000, -2px -2px 0px var(--term-red); }
 
-        #story-text { color: var(--term-red); font-size: 2.2rem; text-align: center; margin-bottom: 20px; max-width: 80%; text-shadow: 2px 2px 0px #000, 0 0 10px var(--term-red); }
+        #story-text { color: var(--term-red); font-size: 2rem; text-align: center; margin-bottom: 20px; max-width: 80%; text-shadow: 2px 2px 0px #000, 0 0 10px var(--term-red); }
         .currency-display { font-size: 2.5rem; color: var(--term-cyan); margin-bottom: 20px; text-shadow: 0 0 8px var(--term-cyan); }
 
         button {
@@ -82,11 +87,11 @@
         button:disabled { background: #222; color: #555; box-shadow: none; cursor: not-allowed; }
 
         .shop-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; width: 90%; margin-bottom: 20px; }
-        .upgrade-card { background: rgba(5, 10, 15, 0.8); border: 1px solid #334; padding: 15px; text-align: center; transition: border-color 0.2s; position: relative;}
+        .upgrade-card { background: rgba(5, 10, 15, 0.8); border: 1px solid #334; padding: 10px; text-align: center; transition: border-color 0.2s; position: relative;}
         .upgrade-card:hover { border-color: var(--term-cyan); }
-        .upgrade-card h3 { margin: 0 0 5px 0; color: #fff; font-size: 1.4rem; text-shadow: 0 0 5px #fff;}
+        .upgrade-card h3 { margin: 0 0 5px 0; color: #fff; font-size: 1.3rem; text-shadow: 0 0 5px #fff;}
         .upgrade-card p { margin: 0 0 10px 0; font-size: 1.1rem; color: #aaa; }
-        .upgrade-card .cost { color: var(--term-cyan); margin-bottom: 10px; display: block; font-size: 1.3rem; font-weight: bold;}
+        .upgrade-card .cost { color: var(--term-cyan); margin-bottom: 10px; display: block; font-size: 1.2rem; font-weight: bold;}
         .new-tag { position: absolute; top: -10px; right: -10px; background: var(--term-red); color: #fff; padding: 2px 6px; font-size: 1rem; box-shadow: 2px 2px 0 #000; animation: blink 1s infinite;}
         
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
@@ -95,15 +100,19 @@
 
         .ui-overlay { 
             position: absolute; bottom: 65px; left: 10px; right: 10px; 
-            display: flex; justify-content: space-between; align-items: flex-end; font-size: 1.8rem; 
+            display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; font-size: 1.6rem; 
             pointer-events: none; z-index: 40; text-shadow: 2px 2px 0 #000; 
             background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 15px 15px 5px 15px; 
         }
-        
-        .hotkey-bar { font-size: 1.5rem; color: #fff; opacity: 0.8; transition: all 0.2s; border-radius: 4px;}
-        .hotkey-bar span { color: var(--term-green); font-weight: bold; border: 1px solid var(--term-green); padding: 2px 6px; border-radius: 4px;}
 
-        canvas { cursor: crosshair; max-width: 100%; height: auto; }
+        .ui-top-row { display: flex; justify-content: space-between; width: 100%; margin-bottom: 10px;}
+        
+        .hotkey-bar { font-size: 1.4rem; color: #fff; opacity: 0.8; display: flex; gap: 15px;}
+        .hotkey-bar .building-option { transition: all 0.2s; padding: 2px 6px; border: 1px solid transparent; border-radius: 4px; }
+        .hotkey-bar .building-option.active { border-color: var(--term-green); background: rgba(57, 255, 20, 0.2); opacity: 1;}
+        .hotkey-bar span.key { color: var(--term-green); font-weight: bold; }
+
+        canvas { cursor: crosshair; max-width: 100%; height: auto; display: block; }
 
         .mana-bar-container { width: 850px; max-width: 100%; height: 25px; background-color: #000; border: 2px solid var(--term-green); margin-top: 15px; display: flex; position: relative; box-shadow: 0 0 10px rgba(57, 255, 20, 0.2);}
         #mana-bar { height: 100%; background: var(--term-cyan); width: 100%; transition: width 0.1s linear; }
@@ -125,12 +134,16 @@
         <canvas id="gameCanvas" width="850" height="540"></canvas>
         
         <div class="ui-overlay" id="in-game-ui" style="display: none;">
-            <div>
+            <div class="ui-top-row">
                 <div id="ui-faith" style="color: var(--term-green); font-size: 2.2rem; font-weight: bold;">SYS.HEALTH: 100%</div>
-                <div class="hotkey-bar" id="hotkey-1"><span>[ 1 ]</span> DEPLOY SENTRY (60 ENG | 0/10)</div>
+                <div id="ui-wave" style="color: #fff; opacity: 0.5;">SECTOR: 1</div>
+                <div id="ui-score" style="color: var(--term-cyan); font-size: 2.2rem;">BYTES: 0</div>
             </div>
-            <div id="ui-wave" style="color: #fff; opacity: 0.5;">SECTOR: 1</div>
-            <div id="ui-score" style="color: var(--term-cyan); font-size: 2.2rem;">BYTES: 0</div>
+            <div class="hotkey-bar" id="hotkeys">
+                <div id="hk-1" class="building-option"><span class="key">[ 1 ]</span> SENTRY (<span id="cost-sentry">60</span>)</div>
+                <div id="hk-2" class="building-option"><span class="key">[ 2 ]</span> FIREWALL (40)</div>
+                <div id="hk-3" class="building-option"><span class="key">[ 3 ]</span> MINE (30)</div>
+            </div>
         </div>
 
         <div class="terminal-container" id="terminal-box">
@@ -149,7 +162,7 @@
         </div>
 
         <div id="shop-screen" class="screen">
-            <h1 style="font-size: 3.5rem; color: #fff; margin-bottom: 5px;">TERMINAL UPLINK</h1>
+            <h1 style="font-size: 3rem; color: #fff; margin-bottom: 5px;">TERMINAL UPLINK</h1>
             <div id="story-text"></div>
             <div class="currency-display" id="shop-souls">BYTES: 0</div>
             <div class="shop-grid">
@@ -219,13 +232,14 @@
         let damageFlash = 0; let autoNodes = []; let glitchInterval = null; 
         let empTimer = 0;
         
-        let turrets = []; let placementMode = false;
-        const maxTurrets = 10;
+        // BUILDINGS UPDATE
+        let buildings = []; 
+        let placementMode = null; // null, 'sentry', 'firewall', 'mine'
+        const maxBuildings = 15;
         
         let recentWords = [];
         const memorySize = 4;
 
-        // Expanded, REAL English words!
         const shortWords = ["data", "wire", "core", "byte", "chip", "node", "link", "port", "disk", "ping", "boot", "host", "user", "file", "path", "code", "lock", "key", "scan", "task", "grid", "wave", "sync", "hash", "salt", "cache", "proxy", "admin", "token", "cloud"];
         const longWords = ["network", "system", "memory", "access", "control", "process", "command", "digital", "virtual", "circuit", "gateway", "firewall", "security", "terminal", "hardware", "software", "database", "protocol", "bandwidth", "encrypt", "malware", "monitor", "server", "router", "traffic"];
         const bossWords = ["mainframe_override", "system_breach", "critical_failure", "unauthorized_access", "recursive_loop", "neural_network", "quantum_compute", "encryption_key", "security_bypass", "hardware_malfunction", "denial_of_service"];
@@ -241,7 +255,7 @@
             "[SYS]: DAEMON 'AUTO.EXE' HAS BEEN UNLOCKED. AUTOMATION READY.",
             "[SYS]: WARNING: COMPLEX HEX ENCRYPTION DETECTED AHEAD.",
             "[SYS]: DAEMON 'DECRYPTOR' HAS BEEN COMPILED. RADAR ONLINE.",
-            "[SYS]: WARNING: EMP SHOCKWAVES DETECTED. PROTECT SENTRIES."
+            "[SYS]: WARNING: EMP SHOCKWAVES DETECTED. PROTECT BUILDINGS."
         ];
 
         let highScore = localStorage.getItem('sysPurgeHighScore') || 0;
@@ -254,7 +268,7 @@
             initAudio(); sndType();
             if (gameState === 'PLAYING') {
                 if (cmdInput.value.length > 0) { 
-                    focusMode = true; placementMode = false; 
+                    focusMode = true; placementMode = null; updatePlacementUI();
                     gameContainer.classList.add('focus-mode'); gameContainer.classList.remove('placement-mode'); 
                 } else { 
                     focusMode = false; gameContainer.classList.remove('focus-mode'); 
@@ -263,20 +277,64 @@
         });
 
         window.addEventListener('keydown', (e) => {
-            if (gameState === 'PLAYING' && e.key === '1' && cmdInput.value === '') {
-                e.preventDefault(); 
-                placementMode = !placementMode;
-                if (placementMode) gameContainer.classList.add('placement-mode');
-                else gameContainer.classList.remove('placement-mode');
+            if (gameState === 'PLAYING' && cmdInput.value === '') {
+                if (e.key === '1') { e.preventDefault(); togglePlacement('sentry'); }
+                if (e.key === '2') { e.preventDefault(); togglePlacement('firewall'); }
+                if (e.key === '3') { e.preventDefault(); togglePlacement('mine'); }
             }
         });
 
-        function updateTurretUI() {
-            let cost = Math.floor(60 * Math.pow(1.2, turrets.length));
-            const h1 = document.getElementById('hotkey-1');
-            if (h1) {
-                h1.innerHTML = `<span>[ 1 ]</span> DEPLOY SENTRY (${cost} ENG | ${turrets.length}/${maxTurrets})`;
+        function togglePlacement(type) {
+            if (placementMode === type) {
+                placementMode = null; gameContainer.classList.remove('placement-mode');
+            } else {
+                placementMode = type; gameContainer.classList.add('placement-mode');
             }
+            updatePlacementUI();
+        }
+
+        function updatePlacementUI() {
+            document.getElementById('hk-1').classList.remove('active');
+            document.getElementById('hk-2').classList.remove('active');
+            document.getElementById('hk-3').classList.remove('active');
+            
+            if (placementMode === 'sentry') document.getElementById('hk-1').classList.add('active');
+            if (placementMode === 'firewall') document.getElementById('hk-2').classList.add('active');
+            if (placementMode === 'mine') document.getElementById('hk-3').classList.add('active');
+
+            let sentriesCount = buildings.filter(b => b.type === 'sentry').length;
+            let costSentry = Math.floor(60 * Math.pow(1.2, sentriesCount));
+            document.getElementById('cost-sentry').textContent = costSentry;
+        }
+
+        function deployBuildingViaCommand(type) {
+            let cost = 0;
+            if (type === 'sentry') cost = Math.floor(60 * Math.pow(1.2, buildings.filter(b=>b.type==='sentry').length));
+            if (type === 'firewall') cost = 40;
+            if (type === 'mine') cost = 30;
+
+            if (buildings.length < maxBuildings && currentMana >= cost) {
+                currentMana -= cost;
+                let tx = canvas.width - 250 + (Math.random()*100 - 50);
+                let ty = 100 + Math.random()*(canvas.height-200);
+                addBuilding(type, tx, ty);
+                return true;
+            }
+            return false;
+        }
+
+        function addBuilding(type, x, y) {
+            if (type === 'sentry') {
+                buildings.push({ type: 'sentry', x: x, y: y, hp: 12, maxHp: 12, cooldown: 0, size: 16, angle: 0, level: 1, territory: 100 });
+                addFloatingText(x, y, "SENTRY ONLINE", "#39ff14"); createExplosion(x, y, "#39ff14", 10);
+            } else if (type === 'firewall') {
+                buildings.push({ type: 'firewall', x: x, y: y, hp: 50, maxHp: 50, width: 16, height: 60 });
+                addFloatingText(x, y, "FIREWALL DEPLOYED", "#ff8800"); createExplosion(x, y, "#ff8800", 15);
+            } else if (type === 'mine') {
+                buildings.push({ type: 'mine', x: x, y: y, hp: 1, maxHp: 1, radius: 10 });
+                addFloatingText(x, y, "MINE ARMED", "#ff003c"); createExplosion(x, y, "#ff003c", 5);
+            }
+            sndPing(); updatePlacementUI();
         }
 
         cmdInput.addEventListener('keydown', function(e) {
@@ -313,15 +371,16 @@
                     } else { addFloatingText(canvas.width/2, canvas.height/2, "HEALTH TOO LOW", "#ff003c"); sndError(); }
                 } 
                 else if (cmd === 'deploy.sentry') {
-                    let cost = Math.floor(60 * Math.pow(1.2, turrets.length));
-                    if (turrets.length < maxTurrets && currentMana >= cost) {
-                        currentMana -= cost;
-                        let tx = canvas.width - 250 + (Math.random()*100 - 50);
-                        let ty = 100 + Math.random()*(canvas.height-200);
-                        turrets.push({ x: tx, y: ty, hp: 12, maxHp: 12, cooldown: 0, size: 16, angle: 0, level: 1, territory: 100 });
-                        addFloatingText(tx, ty, "SENTRY ONLINE", "#39ff14");
-                        createExplosion(tx, ty, "#39ff14", 10); sndPing(); updateTurretUI(); commandSuccessful = true;
-                    } else { addFloatingText(canvas.width/2, canvas.height/2, "DEPLOY FAILED", "#ff003c"); sndError(); }
+                    if (deployBuildingViaCommand('sentry')) commandSuccessful = true;
+                    else { addFloatingText(canvas.width/2, canvas.height/2, "DEPLOY FAILED", "#ff003c"); sndError(); }
+                }
+                else if (cmd === 'deploy.firewall') {
+                    if (deployBuildingViaCommand('firewall')) commandSuccessful = true;
+                    else { addFloatingText(canvas.width/2, canvas.height/2, "DEPLOY FAILED", "#ff003c"); sndError(); }
+                }
+                else if (cmd === 'deploy.mine') {
+                    if (deployBuildingViaCommand('mine')) commandSuccessful = true;
+                    else { addFloatingText(canvas.width/2, canvas.height/2, "DEPLOY FAILED", "#ff003c"); sndError(); }
                 }
                 else if (cmd === 'sys.clear()') {
                     if (currentMana >= 50) {
@@ -378,11 +437,12 @@
         function resetGame() {
             playerStats = { maxMana: 100, manaRegen: 0.2, smiteCost: 20, smiteDmg: 1, souls: 0, faith: 100, autoAtk: 0, autoHack: 0 };
             upgradeCosts = { maxMana: 150, regen: 200, dmg: 250, heal: 100, auto: 300, hack: 500 };
-            currentMana = playerStats.maxMana; wave = 0; tutorialStep = 0; tutorialWait = 60; damageFlash = 0; autoNodes = []; turrets = []; bossWarningTimer = 0; spawnTimer = 0;
-            recentWords = []; empTimer = 0;
+            currentMana = playerStats.maxMana; wave = 0; tutorialStep = 0; tutorialWait = 60; damageFlash = 0; autoNodes = []; buildings = []; bossWarningTimer = 0; spawnTimer = 0;
+            recentWords = []; empTimer = 0; placementMode = null;
             
-            updateTurretUI();
+            updatePlacementUI();
             terminalBox.style.boxShadow = "none";
+            gameContainer.classList.remove('placement-mode');
             
             ['dmg', 'heal', 'auto', 'hack'].forEach(id => {
                 document.getElementById(`card-${id}`).style.display = 'none';
@@ -406,7 +466,7 @@
             gameState = 'PLAYING';
             enemies = []; currentMana = playerStats.maxMana; damageFlash = 0;
             document.getElementById('ui-wave').textContent = `SECTOR: 0`;
-            updateTurretUI();
+            updatePlacementUI();
             cmdInput.focus();
         }
 
@@ -419,17 +479,16 @@
                 enemiesToSpawn = 1; 
                 bossWarningTimer = 180; 
             } else { 
-                // Flatter progression for late game balance!
                 enemiesToSpawn = 5 + Math.floor(wave * 1.5); 
                 bossWarningTimer = 0;
             }
             
-            currentMana = playerStats.maxMana; damageFlash = 0; placementMode = false; gameContainer.classList.remove('placement-mode');
+            currentMana = playerStats.maxMana; damageFlash = 0; placementMode = null; gameContainer.classList.remove('placement-mode'); updatePlacementUI();
             document.getElementById('ui-wave').textContent = `SECTOR: ${wave}`; cmdInput.focus();
         }
 
         function openShop() {
-            gameState = 'SHOP'; focusMode = false; gameContainer.classList.remove('focus-mode'); placementMode = false; gameContainer.classList.remove('placement-mode');
+            gameState = 'SHOP'; focusMode = false; gameContainer.classList.remove('focus-mode'); placementMode = null; gameContainer.classList.remove('placement-mode'); updatePlacementUI();
             document.getElementById('shop-screen').classList.add('active');
             document.getElementById('story-text').textContent = loreLogs[wave] || `[SYS]: SECTOR ${wave} CLEARED. ESCALATION IMMINENT.`;
             
@@ -486,7 +545,6 @@
             if (wave > 4 && rand > 0.88 && rand <= 0.95) type = 'emp'; 
             if (wave > 4 && rand > 0.95) type = 'cipher'; 
 
-            // ANTI-OVERLAP LOGIC: Find a clear Y position so text doesn't mash together
             let yPos;
             let validPos = false;
             let attempts = 0;
@@ -494,7 +552,7 @@
                 yPos = Math.random() * (canvas.height - 150) + 75;
                 validPos = true;
                 for (let i = 0; i < enemies.length; i++) {
-                    if (Math.abs(enemies[i].y - yPos) < 45) { // Ensure at least 45px vertical gap
+                    if (Math.abs(enemies[i].y - yPos) < 45) { 
                         validPos = false; break;
                     }
                 }
@@ -544,44 +602,45 @@
             }
 
             if (placementMode) {
-                let cost = Math.floor(60 * Math.pow(1.2, turrets.length));
-                
-                if (turrets.length >= maxTurrets) {
+                let cost = 0;
+                if (placementMode === 'sentry') cost = Math.floor(60 * Math.pow(1.2, buildings.filter(b=>b.type==='sentry').length));
+                if (placementMode === 'firewall') cost = 40;
+                if (placementMode === 'mine') cost = 30;
+
+                if (buildings.length >= maxBuildings) {
                     addFloatingText(clickX, clickY, "CAPACITY REACHED", "#ff003c"); sndError();
-                    placementMode = false; gameContainer.classList.remove('placement-mode');
+                    togglePlacement(placementMode);
                 } else if (currentMana >= cost) {
                     currentMana -= cost;
-                    turrets.push({ x: clickX, y: clickY, hp: 12, maxHp: 12, cooldown: 0, size: 16, angle: 0, level: 1, territory: 100 });
-                    placementMode = false; gameContainer.classList.remove('placement-mode');
-                    addFloatingText(clickX, clickY, "SENTRY ONLINE", "#39ff14");
-                    createExplosion(clickX, clickY, "#39ff14", 10); sndPing();
-                    updateTurretUI();
+                    addBuilding(placementMode, clickX, clickY);
+                    togglePlacement(placementMode); // exit placement mode
                 } else {
                     addFloatingText(clickX, clickY, "INSUFFICIENT ENG", "#ff003c"); sndError();
-                    placementMode = false; gameContainer.classList.remove('placement-mode');
+                    togglePlacement(placementMode);
                 }
                 return; 
             }
 
-            let clickedTurret = null;
-            for(let i=0; i<turrets.length; i++) {
-                if(Math.hypot(turrets[i].x - clickX, turrets[i].y - clickY) < turrets[i].size * 1.5) {
-                    clickedTurret = turrets[i]; break;
-                }
+            let clickedBuilding = null;
+            for(let i=0; i<buildings.length; i++) {
+                let b = buildings[i];
+                if (b.type === 'sentry' && Math.hypot(b.x - clickX, b.y - clickY) < b.size * 1.5) { clickedBuilding = b; break; }
+                if (b.type === 'firewall' && Math.abs(b.x - clickX) < b.width && Math.abs(b.y - clickY) < b.height) { clickedBuilding = b; break; }
             }
 
-            if (clickedTurret) {
-                let upgradeCost = clickedTurret.level === 1 ? 100 : (clickedTurret.level === 2 ? 250 : -1);
+            if (clickedBuilding && clickedBuilding.type === 'sentry') {
+                let upgradeCost = clickedBuilding.level === 1 ? 100 : (clickedBuilding.level === 2 ? 250 : -1);
                 if (upgradeCost !== -1 && currentMana >= upgradeCost) {
-                    currentMana -= upgradeCost; clickedTurret.level++; clickedTurret.maxHp += 15; clickedTurret.hp = clickedTurret.maxHp;
-                    clickedTurret.territory += 50;
-                    addFloatingText(clickX, clickY, `LVL ${clickedTurret.level} UPGRADE`, "#39ff14");
+                    currentMana -= upgradeCost; clickedBuilding.level++; clickedBuilding.maxHp += 15; clickedBuilding.hp = clickedBuilding.maxHp;
+                    clickedBuilding.territory += 50;
+                    addFloatingText(clickX, clickY, `LVL ${clickedBuilding.level} UPGRADE`, "#39ff14");
                     createExplosion(clickX, clickY, "#00f3ff", 20); sndPing();
                 } else if (upgradeCost === -1) { addFloatingText(clickX, clickY, "MAX LEVEL", "#00f3ff"); sndError();
                 } else { addFloatingText(clickX, clickY, `NEED ${upgradeCost} ENG`, "#ff003c"); sndError(); }
                 return; 
             }
 
+            // Normal Smite Logic
             if (currentMana < playerStats.smiteCost) {
                 document.getElementById('mana-bar').style.background = "#ff003c"; sndError();
                 setTimeout(() => document.getElementById('mana-bar').style.background = "var(--term-cyan)", 150); return;
@@ -749,18 +808,13 @@
             if (tutorialStep === 4 && tutorialWait <= 0) { tutorialStep = 5; }
             if (tutorialStep === 5) {
                 ctx.fillStyle = "#39ff14"; ctx.font = "bold 30px 'VT323'"; ctx.textAlign = "center";
-                ctx.fillText("PRESS [ 1 ] TO ENTER PLACEMENT MODE", canvas.width/2, canvas.height/2 - 40);
-                const h1 = document.getElementById('hotkey-1');
-                if (h1) {
-                    h1.style.color = (frameCount % 30 < 15) ? "#fff" : "#39ff14";
-                    h1.style.boxShadow = (frameCount % 60 < 30) ? "0 0 15px rgba(57, 255, 20, 0.5)" : "none";
-                }
-                if (placementMode) { tutorialStep = 6; if(h1) { h1.style.color = ""; h1.style.boxShadow = "none"; } }
+                ctx.fillText("PRESS [ 1 ] TO SELECT SENTRY", canvas.width/2, canvas.height/2 - 40);
+                if (placementMode === 'sentry') { tutorialStep = 6; }
             }
             if (tutorialStep === 6) {
                 ctx.fillStyle = "#39ff14"; ctx.font = "bold 30px 'VT323'"; ctx.textAlign = "center";
-                ctx.fillText("CLICK TO DEPLOY SENTRY (CLICK IT AGAIN TO UPGRADE)", canvas.width/2, canvas.height/2 - 40);
-                if (turrets.length > 0) { tutorialStep = 7; tutorialWait = 120; } else if (!placementMode) { tutorialStep = 5; }
+                ctx.fillText("CLICK ON GRID TO DEPLOY", canvas.width/2, canvas.height/2 - 40);
+                if (buildings.length > 0) { tutorialStep = 7; tutorialWait = 120; } else if (!placementMode) { tutorialStep = 5; }
             }
             if (tutorialStep === 7) {
                 if (tutorialWait > 0) {
@@ -799,58 +853,103 @@
                 }
             }
 
-            for (let i = 0; i < turrets.length; i++) {
-                let t = turrets[i]; ctx.fillStyle = "rgba(57, 255, 20, 0.08)";
-                ctx.beginPath(); ctx.arc(t.x, t.y, t.territory, 0, Math.PI * 2); ctx.fill();
-                ctx.strokeStyle = "rgba(57, 255, 20, 0.15)"; ctx.lineWidth = 1; ctx.stroke();
+            // Draw Building Territorials (Sentries)
+            for (let i = 0; i < buildings.length; i++) {
+                let b = buildings[i];
+                if (b.type === 'sentry') {
+                    ctx.fillStyle = "rgba(57, 255, 20, 0.08)";
+                    ctx.beginPath(); ctx.arc(b.x, b.y, b.territory, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = "rgba(57, 255, 20, 0.15)"; ctx.lineWidth = 1; ctx.stroke();
+                }
             }
 
-            for (let i = turrets.length - 1; i >= 0; i--) {
-                let t = turrets[i]; t.level = t.level || 1;
-                let tColor = t.level === 1 ? "#39ff14" : (t.level === 2 ? "#ff8800" : "#d900ff");
-                t.size = 14 + (t.level * 3);
+            // Building Logic and Rendering
+            for (let i = buildings.length - 1; i >= 0; i--) {
+                let b = buildings[i];
+                
+                if (b.type === 'sentry') {
+                    let bColor = b.level === 1 ? "#39ff14" : (b.level === 2 ? "#ff8800" : "#d900ff");
+                    b.size = 14 + ((b.level || 1) * 3);
 
-                if (wave > 0) t.hp -= timeScale * 0.015; 
+                    if (wave > 0) b.hp -= timeScale * 0.015; 
 
-                let target = enemies.find(e => !e.shielded && Math.hypot(e.x - t.x, e.y - t.y) < 200 + (t.level*30));
-                if (target && empTimer <= 0) t.angle = Math.atan2(target.y - t.y, target.x - t.x);
+                    let target = enemies.find(e => !e.shielded && Math.hypot(e.x - b.x, e.y - b.y) < 200 + (b.level*30));
+                    if (target && empTimer <= 0) b.angle = Math.atan2(target.y - b.y, target.x - b.x);
 
-                ctx.fillStyle = "#050a0f"; ctx.strokeStyle = (empTimer > 0) ? "#555" : tColor; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                    ctx.fillStyle = "#050a0f"; ctx.strokeStyle = (empTimer > 0) ? "#555" : bColor; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                    ctx.fillStyle = (empTimer > 0) ? "#555" : "#00f3ff"; ctx.beginPath(); ctx.arc(b.x, b.y, b.size * 0.4, 0, Math.PI * 2); ctx.fill();
 
-                ctx.fillStyle = (empTimer > 0) ? "#555" : "#00f3ff";
-                ctx.beginPath(); ctx.arc(t.x, t.y, t.size * 0.4, 0, Math.PI * 2); ctx.fill();
+                    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
+                    ctx.fillStyle = (empTimer > 0) ? "#555" : bColor;
+                    ctx.fillRect(b.size * 0.3, -4 - (b.level-1), b.size * 0.9, 8 + (b.level-1)*2); ctx.restore();
 
-                ctx.save(); ctx.translate(t.x, t.y); ctx.rotate(t.angle);
-                ctx.fillStyle = (empTimer > 0) ? "#555" : tColor;
-                ctx.fillRect(t.size * 0.3, -4 - (t.level-1), t.size * 0.9, 8 + (t.level-1)*2); ctx.restore();
+                    ctx.fillStyle = "#ff003c"; ctx.fillRect(b.x - 12, b.y + 22, 24, 4);
+                    ctx.fillStyle = "#39ff14"; ctx.fillRect(b.x - 12, b.y + 22, 24 * (Math.max(0, b.hp) / b.maxHp), 4);
 
-                ctx.fillStyle = "#ff003c"; ctx.fillRect(t.x - 12, t.y + 22, 24, 4);
-                ctx.fillStyle = "#39ff14"; ctx.fillRect(t.x - 12, t.y + 22, 24 * (Math.max(0, t.hp) / t.maxHp), 4);
+                    if (empTimer > 0) {
+                        ctx.fillStyle = "rgba(0, 255, 204, 0.4)"; ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fill();
+                    } else {
+                        b.cooldown -= timeScale;
+                        let fireRate = b.level === 1 ? 45 : (b.level === 2 ? 25 : 12);
+                        let dmg = b.level === 3 ? 2 : 1;
 
-                if (empTimer > 0) {
-                    ctx.fillStyle = "rgba(0, 255, 204, 0.4)"; ctx.beginPath(); ctx.arc(t.x, t.y, t.size, 0, Math.PI*2); ctx.fill();
-                } else {
-                    t.cooldown -= timeScale;
-                    let fireRate = t.level === 1 ? 45 : (t.level === 2 ? 25 : 12);
-                    let dmg = t.level === 3 ? 2 : 1;
+                        if (b.cooldown <= 0 && target) {
+                            target.hp -= dmg; sndShoot();
+                            autoLasers.push({sx: b.x + Math.cos(b.angle) * (b.size*1.2), sy: b.y + Math.sin(b.angle) * (b.size*1.2), tx: target.x, ty: target.y, life: 10, color: bColor});
+                            b.cooldown = fireRate; 
+                            if (target.hp <= 0) { createExplosion(target.x, target.y, target.color, 20); playerStats.souls += target.maxHp * 15; enemies.splice(enemies.indexOf(target), 1); }
+                        }
+                    }
 
-                    if (t.cooldown <= 0 && target) {
-                        target.hp -= dmg; sndShoot();
-                        autoLasers.push({sx: t.x + Math.cos(t.angle) * (t.size*1.2), sy: t.y + Math.sin(t.angle) * (t.size*1.2), tx: target.x, ty: target.y, life: 10, color: tColor});
-                        t.cooldown = fireRate; 
-                        if (target.hp <= 0) { createExplosion(target.x, target.y, target.color, 20); playerStats.souls += target.maxHp * 15; enemies.splice(enemies.indexOf(target), 1); }
+                    if (b.hp <= 0) { createExplosion(b.x, b.y, bColor, 30); buildings.splice(i, 1); updatePlacementUI(); sndExplode(); }
+                } 
+                else if (b.type === 'firewall') {
+                    ctx.fillStyle = "rgba(255, 136, 0, 0.2)"; ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
+                    ctx.strokeStyle = "#ff8800"; ctx.lineWidth = 2; ctx.strokeRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
+                    
+                    let lines = Math.floor(b.height / 10);
+                    ctx.strokeStyle = "rgba(255, 136, 0, 0.5)"; ctx.lineWidth = 1;
+                    for(let l=0; l<lines; l++) {
+                        let ly = (b.y - b.height/2) + (l * 10) + ((frameCount * 0.5) % 10);
+                        if (ly < b.y + b.height/2) { ctx.beginPath(); ctx.moveTo(b.x - b.width/2, ly); ctx.lineTo(b.x + b.width/2, ly); ctx.stroke(); }
+                    }
+
+                    ctx.fillStyle = "#ff003c"; ctx.fillRect(b.x - 15, b.y + b.height/2 + 5, 30, 4);
+                    ctx.fillStyle = "#ff8800"; ctx.fillRect(b.x - 15, b.y + b.height/2 + 5, 30 * (Math.max(0, b.hp) / b.maxHp), 4);
+
+                    if (wave > 0) b.hp -= timeScale * 0.005; // Firewalls decay very slowly
+                    if (b.hp <= 0) { createExplosion(b.x, b.y, "#ff8800", 30); buildings.splice(i, 1); updatePlacementUI(); sndExplode(); }
+                }
+                else if (b.type === 'mine') {
+                    let pulse = (Math.sin(frameCount * 0.1) + 1) / 2;
+                    ctx.fillStyle = `rgba(255, 0, 60, ${0.3 + pulse * 0.7})`; ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = "#ff003c"; ctx.beginPath(); ctx.arc(b.x, b.y, b.radius * 1.5, 0, Math.PI * 2); ctx.stroke();
+
+                    // Check for detonation
+                    let detonated = false;
+                    for (let e = 0; e < enemies.length; e++) {
+                        if (Math.hypot(enemies[e].x - b.x, enemies[e].y - b.y) < b.radius * 3) { detonated = true; break; }
+                    }
+
+                    if (detonated) {
+                        createExplosion(b.x, b.y, "#ff003c", 50); sndExplode(); shakeFrames = 15;
+                        scorchMarks.push({ x: b.x, y: b.y, life: 100, size: 2 });
+                        for (let e = enemies.length - 1; e >= 0; e--) {
+                            if (Math.hypot(enemies[e].x - b.x, enemies[e].y - b.y) < 120) {
+                                if(enemies[e].shielded) { createExplosion(enemies[e].x, enemies[e].y, "#ff003c", 10); } 
+                                else {
+                                    enemies[e].hp -= 25; 
+                                    if(enemies[e].hp <= 0) {
+                                        createExplosion(enemies[e].x, enemies[e].y, enemies[e].color, 25);
+                                        playerStats.souls += enemies[e].maxHp * 15; enemies.splice(e, 1);
+                                    } else { createExplosion(enemies[e].x, enemies[e].y, "#fff", 10); }
+                                }
+                            }
+                        }
+                        buildings.splice(i, 1); updatePlacementUI();
                     }
                 }
-
-                for (let j = 0; j < enemies.length; j++) {
-                    if (Math.hypot(enemies[j].x - t.x, enemies[j].y - t.y) < enemies[j].size + t.size) {
-                        if (wave > 0) t.hp -= timeScale * 0.08; 
-                        enemies[j].x -= 0.5 * timeScale; 
-                    }
-                }
-
-                if (t.hp <= 0) { createExplosion(t.x, t.y, tColor, 30); turrets.splice(i, 1); updateTurretUI(); sndExplode(); }
             }
 
             if (wave > 0) {
@@ -873,7 +972,6 @@
                     }
                 } else if (enemiesToSpawn > 0 && spawnTimer <= 0) {
                     spawnEnemy(); 
-                    // Slower spawn delay curve to make late-game typing fair! Minimum gap is 50 frames.
                     spawnTimer = Math.max(50, 100 - (wave * 3)); 
                 } else if (enemiesToSpawn <= 0 && enemies.length === 0) {
                     setTimeout(openShop, 1200); gameState = 'WAITING'; 
@@ -907,16 +1005,32 @@
 
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
+                let isBlocked = false;
                 let inTerritory = false;
-                for (let t = 0; t < turrets.length; t++) {
-                    if (Math.hypot(enemy.x - turrets[t].x, enemy.y - turrets[t].y) < turrets[t].territory) { inTerritory = true; break; }
+                
+                // Building Interactions
+                for (let b = 0; b < buildings.length; b++) {
+                    let build = buildings[b];
+                    if (build.type === 'sentry' && Math.hypot(enemy.x - build.x, enemy.y - build.y) < build.territory) { inTerritory = true; }
+                    
+                    if (build.type === 'sentry' && Math.hypot(enemy.x - build.x, enemy.y - build.y) < enemy.size + build.size) {
+                        build.hp -= timeScale * 0.08; enemy.x -= 0.5 * timeScale; // Pushback
+                    }
+                    
+                    if (build.type === 'firewall') {
+                        if (enemy.x + enemy.size/2 > build.x - build.width/2 && enemy.x - enemy.size/2 < build.x + build.width/2 &&
+                            enemy.y + enemy.size/2 > build.y - build.height/2 && enemy.y - enemy.size/2 < build.y + build.height/2) {
+                            isBlocked = true;
+                            build.hp -= timeScale * 0.15; // Damage firewall
+                        }
+                    }
                 }
                 
                 let moveSpeed = enemy.speed * timeScale;
-                if (inTerritory) moveSpeed *= 0.4; 
+                if (isBlocked) moveSpeed = 0;
+                else if (inTerritory) moveSpeed *= 0.4; 
                 
                 enemy.x += moveSpeed;
-                // Only let them drift slightly if they are NOT shielded (so text doesn't drift into each other)
                 if (frameCount % 10 === 0 && !enemy.shielded && enemy.type !== 'boss') enemy.y += ((Math.random() - 0.5) * 4) * timeScale;
 
                 if (enemy.type === 'boss' && frameCount % 120 === 0) {
