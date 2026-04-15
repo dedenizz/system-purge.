@@ -1217,6 +1217,7 @@
                 let empDetonated = false;
                 
                 for (let b = 0; b < buildings.length; b++) {
+                    let build = buildings[b]; // FIX: Added this line to define 'build'
                     if ((build.type === 'sentry' || build.type === 'zephyr_sentry') && Math.hypot(enemy.x - build.x, enemy.y - build.y) < build.territory) { inTerritory = true; }
                     
                     if (build.type === 'firewall') {
