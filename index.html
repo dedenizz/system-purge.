@@ -114,6 +114,15 @@
         .hotkey-bar .building-option.active { border-color: var(--term-green); background: rgba(57, 255, 20, 0.2); opacity: 1;}
         .hotkey-bar span.key { color: var(--term-green); font-weight: bold; }
 
+        /* Building Tooltip Style */
+        #building-tooltip {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85); border: 1px solid var(--term-cyan);
+            color: var(--term-cyan); padding: 8px 15px; font-size: 1.6rem;
+            z-index: 100; text-align: center; display: none;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); pointer-events: none;
+        }
+
         canvas { cursor: crosshair; max-width: 100%; height: auto; display: block; }
 
         .mana-bar-container { width: 850px; max-width: 100%; height: 25px; background-color: #000; border: 2px solid var(--term-green); margin-top: 15px; display: flex; position: relative; box-shadow: 0 0 10px rgba(57, 255, 20, 0.2);}
@@ -134,7 +143,7 @@
     <div class="game-wrapper" id="game-container">
         <div id="boss-overlay"></div>
         <div class="crt-overlay"></div>
-        <canvas id="gameCanvas" width="850" height="540"></canvas>
+        <div id="building-tooltip"></div> <canvas id="gameCanvas" width="850" height="540"></canvas>
         
         <div class="ui-overlay" id="in-game-ui" style="display: none;">
             <div class="ui-top-row">
@@ -204,6 +213,7 @@
         const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
         const cmdInput = document.getElementById('cmd-input'); const gameContainer = document.getElementById('game-container');
         const terminalBox = document.getElementById('terminal-box'); const bossOverlay = document.getElementById('boss-overlay');
+        const tooltipBox = document.getElementById('building-tooltip');
         
         const AudioContext = window.AudioContext || window.webkitAudioContext; let audioCtx;
         function initAudio() { if(!audioCtx) audioCtx = new AudioContext(); if(audioCtx.state === 'suspended') audioCtx.resume(); }
@@ -232,7 +242,7 @@
         let wave = 0, enemiesToSpawn = 0, spawnTimer = 0, shakeFrames = 0, frameCount = 0;
         let enemies = [], scorchMarks = [], lightnings = [], autoLasers = [], particles = [], floatingTexts = [];
         let damageFlash = 0; let autoNodes = []; let glitchInterval = null; 
-        let empTimer = 0; let activeBoss = null;
+        let empTimer = 0; let activeBoss = null; let iFrames = 0; // NEW: I-Frames
         let dreadnoughtLaserY = -1; let dreadnoughtCharge = 0;
         
         let buildings = []; let placementMode = null; const maxBuildings = 20;
@@ -303,6 +313,16 @@
             document.getElementById('hk-3').classList.remove('active');
             if (pulseUnlocked) document.getElementById('hk-4').classList.remove('active');
             
+            if (placementMode) {
+                tooltipBox.style.display = 'block';
+                if (placementMode === 'sentry') tooltipBox.textContent = "[ SENTRY ] Shoots unshielded enemies nearby.";
+                if (placementMode === 'firewall') tooltipBox.textContent = "[ FIREWALL ] Blocks and stalls incoming enemies.";
+                if (placementMode === 'mine') tooltipBox.textContent = "[ MINE ] Explodes on contact for massive area damage.";
+                if (placementMode === 'pulse') tooltipBox.textContent = "[ PULSE ] Charges up over time to damage all nearby enemies.";
+            } else {
+                tooltipBox.style.display = 'none';
+            }
+
             if (placementMode === 'sentry') document.getElementById('hk-1').classList.add('active');
             if (placementMode === 'firewall') document.getElementById('hk-2').classList.add('active');
             if (placementMode === 'mine') document.getElementById('hk-3').classList.add('active');
@@ -318,7 +338,7 @@
                 buildings.push({ type: 'sentry', x: x, y: y, hp: 12, maxHp: 12, cooldown: 0, size: 16, angle: 0, level: 1, territory: 100, encrypted: false });
                 addFloatingText(x, y, "SENTRY ONLINE", "#39ff14"); createExplosion(x, y, "#39ff14", 10);
             } else if (type === 'firewall') {
-                buildings.push({ type: 'firewall', x: x, y: y, hp: 60, maxHp: 60, width: 16, height: 60, encrypted: false });
+                buildings.push({ type: 'firewall', x: x, y: y, hp: 60, maxHp: 60, width: 16, height: 60, encrypted: false, isHit: false });
                 addFloatingText(x, y, "FIREWALL DEPLOYED", "#ff8800"); createExplosion(x, y, "#ff8800", 15);
             } else if (type === 'mine') {
                 buildings.push({ type: 'mine', x: x, y: y, hp: 1, maxHp: 1, radius: 10, encrypted: false });
@@ -395,24 +415,20 @@
                     if (targetIndex !== -1) {
                         const target = enemies[targetIndex];
                         
-                        if (recentWords.includes(cmd) && target.type !== 'cipher') {
-                            createExplosion(target.x, target.y, "#ff003c", target.type === 'boss' ? 100 : 50); 
-                            addFloatingText(target.x, target.y, "STALE: 0 BYTES, -20 ENG", "#ff003c");
-                            currentMana -= 20; sndError();
+                        // TYPING TARGET FIX: Removed Stale Penalty for valid enemy hits entirely.
+                        if (target.type === 'boss') {
+                            createExplosion(target.x, target.y, "#fff", 100); target.shielded = false; 
+                            addFloatingText(target.x, target.y, "FIREWALL BREACHED!", "#39ff14"); sndPing(); shakeFrames = 15;
                         } else {
-                            if (target.type === 'boss') {
-                                createExplosion(target.x, target.y, "#fff", 100); target.shielded = false; 
-                                addFloatingText(target.x, target.y, "FIREWALL BREACHED!", "#39ff14"); sndPing(); shakeFrames = 15;
-                            } else {
-                                createExplosion(target.x, target.y, "#fff", target.type === 'cipher' ? 50 : 30); 
-                                let rewardMult = target.type === 'cipher' ? 60 : 30; playerStats.souls += target.maxHp * rewardMult; 
-                                addFloatingText(target.x, target.y, "DECRYPTED", "#fff"); sndPing(); enemies.splice(targetIndex, 1); 
-                            }
+                            createExplosion(target.x, target.y, "#fff", target.type === 'cipher' ? 50 : 30); 
+                            let rewardMult = target.type === 'cipher' ? 60 : 30; playerStats.souls += target.maxHp * rewardMult; 
+                            addFloatingText(target.x, target.y, "DECRYPTED", "#fff"); sndPing(); enemies.splice(targetIndex, 1); 
                         }
-
-                        recentWords.push(cmd);
-                        if (recentWords.length > memorySize) recentWords.shift();
                         commandSuccessful = true;
+                    } else if (recentWords.includes(cmd)) {
+                        // Only punish stale words if they DON'T match an alive enemy
+                        shakeFrames = 3; addFloatingText(canvas.width/2, canvas.height/2 + 50, "STALE: -20 ENG", "#ff003c");
+                        currentMana -= 20; sndError(); commandSuccessful = true;
                     }
                 }
 
@@ -422,6 +438,9 @@
                     document.getElementById('mana-bar').style.background = "#ff003c";
                     setTimeout(() => document.getElementById('mana-bar').style.background = "var(--term-cyan)", 150);
                 }
+                
+                recentWords.push(cmd);
+                if (recentWords.length > memorySize) recentWords.shift();
             }
         });
 
@@ -429,7 +448,7 @@
             playerStats = { maxMana: 100, manaRegen: 0.2, smiteCost: 20, smiteDmg: 1, souls: 0, faith: 100, autoAtk: 0, autoHack: 0, smiteSplash: false };
             upgradeCosts = { maxMana: 150, regen: 200, dmg: 250, heal: 100, auto: 300, hack: 500, splash: 800 };
             currentMana = playerStats.maxMana; wave = 0; tutorialStep = 0; tutorialWait = 60; damageFlash = 0; autoNodes = []; buildings = []; bossWarningTimer = 0; spawnTimer = 0;
-            recentWords = []; empTimer = 0; placementMode = null; pulseUnlocked = false; activeBoss = null;
+            recentWords = []; empTimer = 0; placementMode = null; pulseUnlocked = false; activeBoss = null; iFrames = 0;
             document.getElementById('hk-4').style.display = 'none'; bossOverlay.style.opacity = '0';
             
             updatePlacementUI(); terminalBox.style.boxShadow = "none"; gameContainer.classList.remove('placement-mode');
@@ -448,14 +467,14 @@
 
         function startGame() {
             document.getElementById('start-screen').classList.remove('active'); document.getElementById('in-game-ui').style.display = 'flex';
-            wave = 0; tutorialStep = 0; tutorialWait = 60; spawnTimer = 0; empTimer = 0; activeBoss = null; bossOverlay.style.opacity = '0';
+            wave = 0; tutorialStep = 0; tutorialWait = 60; spawnTimer = 0; empTimer = 0; activeBoss = null; bossOverlay.style.opacity = '0'; iFrames = 0;
             gameState = 'PLAYING'; enemies = []; currentMana = playerStats.maxMana; damageFlash = 0;
             document.getElementById('ui-wave').textContent = `SECTOR: 0`; updatePlacementUI(); cmdInput.focus();
         }
 
         function startNextWave() {
             document.getElementById('shop-screen').classList.remove('active');
-            gameState = 'PLAYING'; wave++; spawnTimer = 0; empTimer = 0; activeBoss = null; bossOverlay.style.opacity = '0'; dreadnoughtLaserY = -1;
+            gameState = 'PLAYING'; wave++; spawnTimer = 0; empTimer = 0; activeBoss = null; bossOverlay.style.opacity = '0'; dreadnoughtLaserY = -1; iFrames = 0;
             enemies = []; scorchMarks = []; particles = []; floatingTexts = []; autoLasers = [];
             
             if (wave === 8) { pulseUnlocked = true; document.getElementById('hk-4').style.display = 'block'; }
@@ -529,10 +548,8 @@
             if (wave > 15 && rand > 0.80 && rand <= 0.90) type = 'phantom';
             if (wave > 25 && rand > 0.90) type = 'goliath';
 
-            // FIXED EMP SPAWN BOUNDS
             let yPos; let validPos = false; let attempts = 0;
             while (!validPos && attempts < 15) {
-                // Ensure enemies spawn at least 150px from bottom (terminal) and 60px from top
                 yPos = Math.random() * (canvas.height - 200) + 60;
                 validPos = true;
                 for (let i = 0; i < enemies.length; i++) { if (Math.abs(enemies[i].y - yPos) < 45) { validPos = false; break; } }
@@ -663,6 +680,12 @@
             ctx.fillStyle = `rgba(0, 243, 255, ${shieldOpacity})`;
             if (damageFlash > 0) ctx.fillStyle = `rgba(255, 0, 60, ${damageFlash})`;
             ctx.fillRect(baseX - 15, 30, 8, canvas.height - 60);
+
+            // Render Invincibility Frame Shield Effect
+            if (iFrames > 0 && frameCount % 10 < 5) {
+                ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                ctx.fillRect(baseX - 25, 30, 10, canvas.height - 60);
+            }
             
             ctx.fillStyle = "#0a1118"; ctx.strokeStyle = "#1a2a3a"; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(baseX + 10, 40); ctx.lineTo(baseX + baseWidth, 40); ctx.lineTo(baseX + baseWidth, canvas.height - 40); ctx.lineTo(baseX + 10, canvas.height - 40);
@@ -698,6 +721,10 @@
             ctx.save(); ctx.globalAlpha = e.alpha !== undefined ? e.alpha : 1.0;
             if (e.type === 'boss') {
                 ctx.translate(e.x, e.y);
+                // Boss Breathing Scale Animation
+                let bossScale = 1 + Math.sin(frameCount * 0.05) * 0.05;
+                ctx.scale(bossScale, bossScale);
+
                 if (e.subType === 'swarm_queen') {
                     let pulse = Math.sin(frameCount * 0.1) * 10;
                     ctx.fillStyle = e.color; ctx.beginPath(); ctx.arc(0, 0, (e.size/2) + pulse, 0, Math.PI*2); ctx.fill();
@@ -772,8 +799,18 @@
             requestAnimationFrame(gameLoop); if (gameState === 'DEATH_SEQ') return; 
             const timeScale = focusMode ? 0.15 : 1.0;
             if (empTimer > 0) empTimer -= timeScale;
+            if (iFrames > 0) iFrames -= timeScale;
 
             ctx.fillStyle = focusMode ? "rgba(0, 8, 20, 0.4)" : "rgba(2, 4, 8, 1.0)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Boss Visual Overlay
+            if (activeBoss) {
+                let bgTheme = activeBoss.subType === 'swarm_queen' ? "rgba(255,0,60,0.15)" : (activeBoss.subType === 'dreadnought' ? "rgba(136,0,255,0.15)" : "rgba(0,243,255,0.15)");
+                ctx.fillStyle = bgTheme; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                if (Math.random() < 0.3) {
+                    particles.push({x: Math.random()*canvas.width, y: -10, vx: 0, vy: Math.random()*2+1, life: 1.5, color: activeBoss.color, size: Math.random()*3+1});
+                }
+            }
 
             if (gameState !== 'PLAYING') return;
             frameCount++;
@@ -863,7 +900,10 @@
                 } 
                 else if (b.type === 'firewall') {
                     if (!b.encrypted) {
-                        ctx.fillStyle = "rgba(255, 136, 0, 0.2)"; ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
+                        ctx.fillStyle = b.isHit ? "rgba(255, 255, 255, 0.6)" : "rgba(255, 136, 0, 0.2)";
+                        ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
+                        b.isHit = false; // Reset visual hit flag
+
                         ctx.strokeStyle = "#ff8800"; ctx.lineWidth = 2; ctx.strokeRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
                         let lines = Math.floor(b.height / 10); ctx.strokeStyle = "rgba(255, 136, 0, 0.5)"; ctx.lineWidth = 1;
                         for(let l=0; l<lines; l++) {
@@ -893,6 +933,9 @@
                             }
                             if (hasTarget) {
                                 b.charge = 0; sndPulse();
+                                // Massive Purple Flash on Pulse Fire
+                                ctx.fillStyle = "rgba(217, 0, 255, 0.4)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+                                
                                 ctx.strokeStyle = "rgba(217, 0, 255, 0.8)"; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2); ctx.stroke();
                                 for (let e = enemies.length - 1; e >= 0; e--) {
                                     if (Math.hypot(enemies[e].x - b.x, enemies[e].y - b.y) < b.radius && !enemies[e].shielded) {
@@ -1055,6 +1098,7 @@
                                 break;
                             } else {
                                 isBlocked = true; build.hp -= timeScale * 0.15; 
+                                build.isHit = true; // Mark for intersection visual flash
                             }
                         }
                     }
@@ -1116,10 +1160,20 @@
                 drawEnemy(enemy);
 
                 if (enemy.x > fortressFrontLine) { 
-                    playerStats.faith -= enemy.maxHp * 5; createExplosion(enemy.x, enemy.y, enemy.color, 50);
+                    if (iFrames <= 0) {
+                        let damage = enemy.type === 'boss' ? 50 : Math.min(25, enemy.maxHp * 5); // Capped damage so ship survives
+                        playerStats.faith -= damage;
+                        iFrames = 90; // Apply 1.5 Seconds of Invincibility Frames
+                        shakeFrames = 15; damageFlash = 0.8; sndExplode();
+                    } else {
+                        addFloatingText(enemy.x, enemy.y, "BLOCKED", "#00f3ff");
+                        createExplosion(enemy.x, enemy.y, "#fff", 20);
+                    }
+
                     if(enemy.type === 'emp') { empTimer = 180; shakeFrames = 25; sndError(); } 
                     if(enemy.type === 'boss') { activeBoss = null; bossOverlay.style.opacity = '0'; }
-                    enemies.splice(i, 1); shakeFrames = 15; damageFlash = 0.8; sndExplode();
+                    enemies.splice(i, 1); 
+                    
                     if (playerStats.faith <= 0) { triggerDeathSequence(); return; }
                 }
             }
