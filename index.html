@@ -11,7 +11,7 @@
             --term-red: #ff003c;
             --term-cyan: #00f3ff;
             --term-orange: #ff8800;
-            --term-zephyr: #d900ff; /* World 2 Zephyrite Color */
+            --term-zephyr: #d900ff;
             --bg-dark: #050a0f;
         }
 
@@ -47,7 +47,6 @@
             background-size: 100% 4px; box-shadow: inset 0 0 80px rgba(0,0,0,0.9);
         }
 
-        /* Boss Theme Overlays */
         #boss-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 1s, background 1s;
         }
@@ -76,7 +75,6 @@
         }
         .screen.active { opacity: 1; pointer-events: all; }
         
-        /* NEW: Added glitch animation to title */
         .game-title { 
             margin: 0 0 20px 0; color: var(--term-cyan); font-size: 4.5rem; text-transform: uppercase; 
             letter-spacing: 2px; text-shadow: 4px 4px 0px #000, -2px -2px 0px var(--term-red); 
@@ -103,7 +101,6 @@
         button:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #000; background: #fff;}
         button:disabled { background: #222; color: #555; box-shadow: none; cursor: not-allowed; }
 
-        /* NEW: Pulse animation for the start button */
         .pulse-btn {
             animation: pulseFade 1.2s infinite alternate; border: 2px solid #fff;
         }
@@ -122,7 +119,6 @@
         
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-        /* NEW: Blinking instructions */
         .blink-cmd { animation: blinkText 1.5s infinite; font-weight: bold; }
         @keyframes blinkText { 0%, 100% { opacity: 1; text-shadow: 0 0 10px var(--term-cyan); } 50% { opacity: 0.4; text-shadow: none; } }
 
@@ -142,7 +138,6 @@
         .hotkey-bar .building-option.active { border-color: var(--term-green); background: rgba(57, 255, 20, 0.2); opacity: 1;}
         .hotkey-bar span.key { color: var(--term-green); font-weight: bold; }
 
-        /* Building Tooltip Style */
         #building-tooltip {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.85); border: 1px solid var(--term-cyan);
@@ -267,12 +262,11 @@
         const sndBossHit = () => { playTone(200, 'sawtooth', 0.5, 0.2); playTone(150, 'square', 0.6, 0.2); };
         const sndPulse = () => playTone(150, 'sine', 0.5, 0.3);
 
-        // ADDED: zephyrite to playerStats
         let playerStats = { maxMana: 100, manaRegen: 0.2, smiteCost: 20, smiteDmg: 1, souls: 0, zephyrite: 0, faith: 100, autoAtk: 0, autoHack: 0, smiteSplash: false };
         let upgradeCosts = { maxMana: 150, regen: 200, dmg: 250, heal: 100, auto: 300, hack: 500, splash: 800 };
         
         let prestigeMult = 1.0; let prestigeLevel = 0; 
-        let zephyrUnlocked = false; // Tracks if World 2 towers are available
+        let zephyrUnlocked = false;
 
         let gameState = 'START'; let currentMana = playerStats.maxMana;
         let wave = 0, enemiesToSpawn = 0, spawnTimer = 0, shakeFrames = 0, frameCount = 0;
@@ -305,7 +299,7 @@
             "[SYS]: NEW SCHEMATIC: PULSE TOWER DECRYPTED. USE HOTKEY [4].",
             "[SYS]: SECTOR ESCALATION. HEAVY ARMOR UNITS DETECTED.",
             "[SYS]: 'QUANTUM' UPGRADE UNLOCKED. SMITE SPLASH DAMAGE AVAILABLE.",
-            "[SYS]: WARNING: PLANET ZEPHYR BREACHED. HARVESTING ZEPHYRITE." // World 2 lore log
+            "[SYS]: WARNING: PLANET ZEPHYR BREACHED. HARVESTING ZEPHYRITE."
         ];
 
         let highScore = localStorage.getItem('sysPurgeHighScore') || 0;
@@ -380,9 +374,10 @@
             document.getElementById('cost-sentry').textContent = costSentry;
         }
 
+        // ANIMATION UPDATE: Added 'recoil' to Sentry base stats
         function addBuilding(type, x, y) {
             if (type === 'sentry') {
-                buildings.push({ type: 'sentry', x: x, y: y, hp: 12, maxHp: 12, cooldown: 0, size: 16, angle: 0, level: 1, territory: 100, encrypted: false });
+                buildings.push({ type: 'sentry', x: x, y: y, hp: 12, maxHp: 12, cooldown: 0, size: 16, angle: 0, level: 1, territory: 100, encrypted: false, recoil: 0 });
                 addFloatingText(x, y, "SENTRY ONLINE", "#39ff14"); createExplosion(x, y, "#39ff14", 10);
             } else if (type === 'firewall') {
                 buildings.push({ type: 'firewall', x: x, y: y, hp: 60, maxHp: 60, width: 16, height: 60, encrypted: false, isHit: false });
@@ -394,7 +389,7 @@
                 buildings.push({ type: 'pulse', x: x, y: y, hp: 20, maxHp: 20, charge: 0, radius: 80, encrypted: false });
                 addFloatingText(x, y, "PULSE TOWER ACTIVE", "#d900ff"); createExplosion(x, y, "#d900ff", 15);
             } else if (type === 'zephyr_sentry') {
-                buildings.push({ type: 'zephyr_sentry', x: x, y: y, hp: 40, maxHp: 40, cooldown: 0, size: 18, angle: 0, territory: 150, encrypted: false });
+                buildings.push({ type: 'zephyr_sentry', x: x, y: y, hp: 40, maxHp: 40, cooldown: 0, size: 18, angle: 0, territory: 150, encrypted: false, recoil: 0 });
                 addFloatingText(x, y, "Z-SENTRY ONLINE", "var(--term-zephyr)"); createExplosion(x, y, "var(--term-zephyr)", 20);
             } else if (type === 'plasma_mortar') {
                 buildings.push({ type: 'plasma_mortar', x: x, y: y, hp: 30, maxHp: 30, cooldown: 0, size: 20, territory: 250, encrypted: false });
@@ -411,7 +406,6 @@
                 if (cmd === '') return;
 
                 if (gameState === 'START') {
-                    // NEW: Stepped boot animation sequence
                     if (cmd === 'sys.boot') {
                         let bootLog = document.getElementById('boot-log');
                         bootLog.innerHTML += `<br><br><span class="log-cmd">C:\\> sys.boot</span>`;
@@ -432,7 +426,6 @@
                 if (gameState !== 'PLAYING') return;
                 let commandSuccessful = false;
 
-                // Check for Building Decryption First
                 for (let i = 0; i < buildings.length; i++) {
                     if (buildings[i].encrypted && buildings[i].word === cmd) {
                         buildings[i].encrypted = false;
@@ -513,7 +506,7 @@
 
         function doPrestige() {
             prestigeLevel++;
-            prestigeMult += 0.5; // +50% Damage per prestige
+            prestigeMult += 0.5; 
             playerStats = { maxMana: 100, manaRegen: 0.2, smiteCost: 20, smiteDmg: 1, souls: 0, zephyrite: 0, faith: 100, autoAtk: 0, autoHack: 0, smiteSplash: false };
             upgradeCosts = { maxMana: 150, regen: 200, dmg: 250, heal: 100, auto: 300, hack: 500, splash: 800 };
             currentMana = playerStats.maxMana; wave = 0; damageFlash = 0; autoNodes = []; buildings = []; bossWarningTimer = 0; spawnTimer = 0;
@@ -570,11 +563,10 @@
             document.getElementById('start-screen').classList.add('active'); cmdInput.value = ''; cmdInput.focus();
         }
 
-        // NEW: Flash bang animation upon entering the game
         function startGame() {
             sndExplode();
             shakeFrames = 20; 
-            damageFlash = 1.0; // Acts as a full white screen flash when starting
+            damageFlash = 1.0; 
             
             document.getElementById('start-screen').classList.remove('active'); document.getElementById('in-game-ui').style.display = 'flex';
             wave = 0; tutorialStep = 0; tutorialWait = 60; spawnTimer = 0; empTimer = 0; activeBoss = null; bossOverlay.style.opacity = '0'; iFrames = 0;
@@ -810,7 +802,7 @@
             
             let shieldOpacity = Math.max(0.1, playerStats.faith / 200);
             ctx.fillStyle = `rgba(0, 243, 255, ${shieldOpacity})`;
-            if (damageFlash > 0) ctx.fillStyle = `rgba(255, 255, 255, ${damageFlash})`; // Change flash color to white for the startup effect
+            if (damageFlash > 0) ctx.fillStyle = `rgba(255, 255, 255, ${damageFlash})`; 
             ctx.fillRect(baseX - 15, 30, 8, canvas.height - 60);
 
             if (iFrames > 0 && frameCount % 10 < 5) {
@@ -848,8 +840,13 @@
             });
         }
 
+        // ANIMATION UPDATE: Added movement wobble and pulsing shields to enemies
         function drawEnemy(e) {
             ctx.save(); ctx.globalAlpha = e.alpha !== undefined ? e.alpha : 1.0;
+            
+            let wobble = (e.type !== 'boss' && !e.shielded && e.type !== 'goliath') ? Math.sin(frameCount * 0.2 + e.y) * 3 : 0;
+            let ey = e.y + wobble;
+
             if (e.type === 'boss') {
                 ctx.translate(e.x, e.y);
                 let bossScale = 1 + Math.sin(frameCount * 0.05) * 0.05;
@@ -872,28 +869,30 @@
                 }
             } else if (e.type === 'egg') {
                 let pulse = Math.sin(frameCount * 0.2) * 5; ctx.fillStyle = "#ff003c";
-                ctx.beginPath(); ctx.ellipse(e.x, e.y, e.size/2 + pulse, e.size/1.5 + pulse, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(e.x, ey, e.size/2 + pulse, e.size/1.5 + pulse, 0, 0, Math.PI*2); ctx.fill();
             } else if (e.type === 'phantom') {
-                ctx.fillStyle = e.color; ctx.beginPath(); ctx.moveTo(e.x, e.y - e.size/2); ctx.lineTo(e.x + e.size/2, e.y + e.size/2); ctx.lineTo(e.x - e.size/2, e.y + e.size/2); ctx.fill();
+                ctx.fillStyle = e.color; ctx.beginPath(); ctx.moveTo(e.x, ey - e.size/2); ctx.lineTo(e.x + e.size/2, ey + e.size/2); ctx.lineTo(e.x - e.size/2, ey + e.size/2); ctx.fill();
             } else if (e.type === 'goliath') {
-                ctx.fillStyle = e.color; ctx.fillRect(e.x - e.size/2, e.y - e.size/2, e.size, e.size);
-                ctx.strokeStyle = "#ff8800"; ctx.lineWidth = 4; ctx.strokeRect(e.x - e.size/2, e.y - e.size/2, e.size, e.size);
-                ctx.fillStyle = "#000"; ctx.fillRect(e.x + 10, e.y - 10, 10, 20);
+                ctx.fillStyle = e.color; ctx.fillRect(e.x - e.size/2, ey - e.size/2, e.size, e.size);
+                ctx.strokeStyle = "#ff8800"; ctx.lineWidth = 4; ctx.strokeRect(e.x - e.size/2, ey - e.size/2, e.size, e.size);
+                ctx.fillStyle = "#000"; ctx.fillRect(e.x + 10, ey - 10, 10, 20);
             } else {
-                ctx.fillStyle = e.color; ctx.fillRect(e.x - e.size/2, e.y - e.size/2, e.size, e.size);
+                ctx.fillStyle = e.color; ctx.fillRect(e.x - e.size/2, ey - e.size/2, e.size, e.size);
                 let glitchOff = (frameCount % 4 === 0) ? e.size/2 : -e.size/2;
-                ctx.fillRect(e.x + glitchOff, e.y - e.size/4, e.size/2, e.size/2); ctx.fillRect(e.x - e.size/4, e.y + glitchOff, e.size/2, e.size/2);
-                ctx.fillStyle = "#fff"; ctx.fillRect(e.x - 2, e.y - 2, 4, 4);
+                ctx.fillRect(e.x + glitchOff, ey - e.size/4, e.size/2, e.size/2); ctx.fillRect(e.x - e.size/4, ey + glitchOff, e.size/2, e.size/2);
+                ctx.fillStyle = "#fff"; ctx.fillRect(e.x - 2, ey - 2, 4, 4);
             }
             ctx.restore();
 
             if (e.shielded) {
+                let sPulse = Math.sin(frameCount * 0.1) * 3;
                 ctx.strokeStyle = e.color === "#00f3ff" ? "#00f3ff" : (e.color === "#00ffcc" ? "#00ffcc" : "#ff003c"); 
-                ctx.lineWidth = e.type === 'boss' ? 4 : 2; ctx.strokeRect(e.x - e.size, e.y - e.size, e.size*2, e.size*2);
+                ctx.lineWidth = e.type === 'boss' ? 4 : 2; 
+                ctx.strokeRect(e.x - e.size - sPulse/2, e.y - e.size - sPulse/2, e.size*2 + sPulse, e.size*2 + sPulse);
                 ctx.fillStyle = e.color === "#00f3ff" ? "rgba(0,243,255,0.1)" : (e.color === "#00ffcc" ? "rgba(0,255,204,0.1)" : "rgba(255,0,60,0.2)"); 
-                ctx.fillRect(e.x - e.size, e.y - e.size, e.size*2, e.size*2);
+                ctx.fillRect(e.x - e.size - sPulse/2, e.y - e.size - sPulse/2, e.size*2 + sPulse, e.size*2 + sPulse);
                 ctx.fillStyle = "#fff"; ctx.font = e.type === 'boss' ? "bold 30px 'VT323', monospace" : "bold 18px 'VT323', monospace"; 
-                ctx.textAlign = "center"; ctx.fillText(e.word, e.x, e.y - e.size - 10);
+                ctx.textAlign = "center"; ctx.fillText(e.word, e.x, e.y - e.size - 10 - sPulse);
             }
 
             if ((e.type === 'boss' || e.type === 'goliath') && !e.shielded) {
@@ -989,7 +988,7 @@
                 if (b.type === 'sentry' || b.type === 'zephyr_sentry') {
                     let bColor = b.type === 'sentry' ? 
                         (b.level === 1 ? "#39ff14" : (b.level === 2 ? "#ff8800" : (b.level === 3 ? "#d900ff" : (b.level === 4 ? "#fff" : "#ff003c")))) : 
-                        "#d900ff"; // Zephyr Sentry base color
+                        "#d900ff";
                     
                     if (b.type === 'sentry') b.size = 14 + (Math.min(4, b.level) * 2);
 
@@ -1006,11 +1005,13 @@
                         let fireRate = b.type === 'sentry' ? (b.level === 1 ? 45 : (b.level === 2 ? 25 : (b.level === 3 ? 15 : (b.level === 4 ? 8 : 2)))) : 15;
                         let dmg = (b.type === 'sentry' ? (b.level >= 3 ? (b.level === 5 ? 3 : 2) : 1) : 4) * prestigeMult;
 
+                        // ANIMATION UPDATE: Added Recoil trigger when firing
                         if (b.cooldown <= 0 && target && empTimer <= 0) {
                             let dmgDealt = target.type === 'goliath' ? Math.max(0.5, dmg * 0.5) : dmg;
                             target.hp -= dmgDealt; sndShoot();
                             autoLasers.push({sx: b.x + Math.cos(b.angle) * (b.size*1.2), sy: b.y + Math.sin(b.angle) * (b.size*1.2), tx: target.x, ty: target.y, life: 10, color: bColor});
                             b.cooldown = fireRate; 
+                            b.recoil = 6; // Trigger recoil
                             if (target.hp <= 0) { 
                                 createExplosion(target.x, target.y, target.color, target.type==='boss'?50:20); 
                                 if(target.type === 'boss') { 
@@ -1026,6 +1027,10 @@
                         }
                     }
 
+                    // ANIMATION UPDATE: Recoil decay and application to drawing
+                    if (b.recoil > 0) b.recoil -= timeScale;
+                    let rOffset = Math.max(0, b.recoil || 0);
+
                     if (b.type === 'sentry') {
                         ctx.fillStyle = "#050a0f"; ctx.strokeStyle = (empTimer > 0 || b.encrypted) ? "#555" : bColor; ctx.lineWidth = b.level === 5 ? 4 : 2;
                         ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -1033,16 +1038,15 @@
 
                         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
                         ctx.fillStyle = (empTimer > 0 || b.encrypted) ? "#555" : bColor;
-                        if (b.level >= 4) { ctx.fillRect(b.size * 0.3, -8, b.size, 4); ctx.fillRect(b.size * 0.3, 4, b.size, 4); }
-                        else { ctx.fillRect(b.size * 0.3, -4 - (b.level-1), b.size * 0.9, 8 + (b.level-1)*2); }
+                        if (b.level >= 4) { ctx.fillRect(b.size * 0.3 - rOffset, -8, b.size, 4); ctx.fillRect(b.size * 0.3 - rOffset, 4, b.size, 4); }
+                        else { ctx.fillRect(b.size * 0.3 - rOffset, -4 - (b.level-1), b.size * 0.9, 8 + (b.level-1)*2); }
                         ctx.restore();
                     } else if (b.type === 'zephyr_sentry') {
-                        // Diamond shape
                         ctx.fillStyle = "#050a0f"; ctx.strokeStyle = (empTimer > 0 || b.encrypted) ? "#555" : bColor; ctx.lineWidth = 2;
                         ctx.beginPath(); ctx.moveTo(b.x, b.y - b.size); ctx.lineTo(b.x + b.size, b.y); ctx.lineTo(b.x, b.y + b.size); ctx.lineTo(b.x - b.size, b.y); ctx.closePath(); ctx.fill(); ctx.stroke();
                         ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
                         ctx.fillStyle = (empTimer > 0 || b.encrypted) ? "#555" : "#fff";
-                        ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(b.size * 1.5, 0); ctx.lineTo(0, 5); ctx.fill();
+                        ctx.beginPath(); ctx.moveTo(0 - rOffset, -5); ctx.lineTo(b.size * 1.5 - rOffset, 0); ctx.lineTo(0 - rOffset, 5); ctx.fill();
                         ctx.restore();
                     }
 
@@ -1062,6 +1066,11 @@
                             if (ly < b.y + b.height/2) { ctx.beginPath(); ctx.moveTo(b.x - b.width/2, ly); ctx.lineTo(b.x + b.width/2, ly); ctx.stroke(); }
                         }
                         if (wave > 0) b.hp -= timeScale * 0.005; 
+                        
+                        // ANIMATION UPDATE: Emitting damage smoke particles when HP is low
+                        if (b.hp < b.maxHp * 0.5 && Math.random() < 0.05) {
+                            particles.push({x: b.x + (Math.random()-0.5)*b.width, y: b.y + (Math.random()-0.5)*b.height, vx: 0, vy: -1.5, life: 1, color: "#888", size: 4});
+                        }
                     } else {
                         ctx.fillStyle = "#555"; ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
                     }
@@ -1257,7 +1266,7 @@
                 let empDetonated = false;
                 
                 for (let b = 0; b < buildings.length; b++) {
-                    let build = buildings[b]; // FIX: Added this line to define 'build'
+                    let build = buildings[b]; 
                     if ((build.type === 'sentry' || build.type === 'zephyr_sentry') && Math.hypot(enemy.x - build.x, enemy.y - build.y) < build.territory) { inTerritory = true; }
                     
                     if (build.type === 'firewall') {
@@ -1304,7 +1313,6 @@
                 }
 
                 if (enemy.type === 'boss') {
-                    // Phase 2 Transition
                     if (!enemy.shielded && !enemy.isPhase2 && enemy.hp <= enemy.maxHp * 0.5) {
                         enemy.isPhase2 = true;
                         enemy.speed *= 1.5;
@@ -1323,7 +1331,7 @@
                         if (enemy.subType === 'dreadnought' && frameCount % 240 === 0) {
                             dreadnoughtLaserY = Math.random() * (canvas.height - 150) + 75; dreadnoughtCharge = 0; sndPing();
                         }
-                        if (enemy.subType === 'dreadnought' && enemy.isPhase2) dreadnoughtCharge += timeScale; // Charges twice as fast
+                        if (enemy.subType === 'dreadnought' && enemy.isPhase2) dreadnoughtCharge += timeScale;
                         
                         let cryptoRate = enemy.isPhase2 ? 90 : 180;
                         if (enemy.subType === 'cryptolocker' && frameCount % cryptoRate === 0) {
@@ -1360,16 +1368,38 @@
                 }
             }
 
+            // ANIMATION UPDATE: Particles shrink as they lose life
             for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i]; p.x += p.vx * timeScale; p.y += p.vy * timeScale; p.vx *= 0.85; p.vy *= 0.85; p.life -= 0.04 * timeScale; 
-                ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.life); ctx.fillRect(p.x, p.y, p.size, p.size); 
+                const p = particles[i]; 
+                p.x += p.vx * timeScale; p.y += p.vy * timeScale; 
+                p.vx *= 0.85; p.vy *= 0.85; p.life -= 0.04 * timeScale; 
+                let currentSize = Math.max(0.1, p.size * p.life); // Shrinking logic
+                ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.life); 
+                ctx.fillRect(p.x, p.y, currentSize, currentSize); 
                 if (p.life <= 0) particles.splice(i, 1);
             }
             ctx.globalAlpha = 1.0;
 
+            // ANIMATION UPDATE: Jagged electric lightning for smite
             for (let i = lightnings.length - 1; i >= 0; i--) {
-                const bolt = lightnings[i]; ctx.fillStyle = `rgba(0, 243, 255, ${bolt.life/15})`; ctx.fillRect(bolt.x - (20*bolt.thickness), 0, (40*bolt.thickness), bolt.y); 
-                ctx.fillStyle = `rgba(255, 255, 255, ${bolt.life/15})`; ctx.fillRect(bolt.x - (8*bolt.thickness), 0, (16*bolt.thickness), bolt.y); 
+                const bolt = lightnings[i]; 
+                ctx.strokeStyle = `rgba(0, 243, 255, ${bolt.life/15})`; 
+                ctx.lineWidth = 4 * bolt.thickness;
+                ctx.beginPath();
+                ctx.moveTo(bolt.x, 0);
+                let curY = 0;
+                while(curY < bolt.y) {
+                    let nextY = Math.min(curY + 30, bolt.y);
+                    let nextX = bolt.x + (Math.random() - 0.5) * 30 * bolt.thickness;
+                    ctx.lineTo(nextX, nextY);
+                    curY = nextY;
+                }
+                ctx.stroke();
+                
+                ctx.strokeStyle = `rgba(255, 255, 255, ${bolt.life/15})`; 
+                ctx.lineWidth = 2 * bolt.thickness;
+                ctx.stroke();
+
                 bolt.life -= timeScale; if (bolt.life <= 0) lightnings.splice(i, 1);
             }
 
@@ -1388,7 +1418,6 @@
             
             document.getElementById('ui-faith').textContent = `SYS.HEALTH: ${Math.floor(playerStats.faith)}%`;
             
-            // UI shows both normal Bytes and Zephyrite (if unlocked)
             if (zephyrUnlocked) {
                 document.getElementById('ui-score').innerHTML = `BYTES: ${playerStats.souls} | <span style="color:var(--term-zephyr)">ZEPH: ${playerStats.zephyrite}</span>`;
             } else {
