@@ -11,7 +11,7 @@
             --term-red: #ff003c;
             --term-cyan: #00f3ff;
             --term-orange: #ff8800;
-            --term-zephyr: #d900ff; /* World 2 Zephyrite Color */
+            --term-zephyr: #d900ff;
             --bg-dark: #050a0f;
         }
 
@@ -157,6 +157,15 @@
         .log-cmd { color: var(--term-cyan); text-shadow: 0 0 5px var(--term-cyan);}
         
         #personal-best { color: var(--term-cyan); font-size: 2rem; margin-top: 15px; text-shadow: 0 0 5px var(--term-cyan); }
+        
+        /* LEADERBOARD STYLES */
+        .leaderboard-container { width: 80%; max-width: 600px; background: rgba(5, 10, 15, 0.9); border: 2px solid var(--term-cyan); padding: 20px; box-shadow: 0 0 20px rgba(0,243,255,0.2); margin-bottom: 20px;}
+        .leaderboard-entry { display: flex; justify-content: space-between; font-size: 2rem; border-bottom: 1px dashed #334; padding: 5px 0; color: #fff;}
+        .leaderboard-entry:nth-child(1) { color: var(--term-orange); font-weight: bold; text-shadow: 0 0 5px var(--term-orange); }
+        .leaderboard-entry:nth-child(2) { color: #ccc; }
+        .leaderboard-entry:nth-child(3) { color: #a67c00; }
+        #name-input-box { margin-top: 20px; display: none; flex-direction: column; align-items: center; }
+        #player-initials { background: #000; color: var(--term-green); border: 2px solid var(--term-green); font-family: 'VT323'; font-size: 3rem; text-align: center; width: 100px; text-transform: uppercase; outline: none; margin: 10px; }
     </style>
 </head>
 <body>
@@ -166,7 +175,8 @@
     <div class="game-wrapper" id="game-container">
         <div id="boss-overlay"></div>
         <div class="crt-overlay"></div>
-        <div id="building-tooltip"></div> <canvas id="gameCanvas" width="850" height="540"></canvas>
+        <div id="building-tooltip"></div> 
+        <canvas id="gameCanvas" width="850" height="540"></canvas>
         
         <div class="ui-overlay" id="in-game-ui" style="display: none;">
             <div class="ui-top-row">
@@ -196,7 +206,19 @@
                 > TO INITIATE SEQUENCE, TYPE: <span class="log-cmd blink-cmd">sys.boot</span> IN TERMINAL BELOW.
             </div>
             <div id="personal-best"></div>
-            <button id="btn-start" class="pulse-btn" onclick="startGame()" style="display: none; background: var(--term-cyan);">[ INITIALIZE ]</button>
+            <div>
+                <button id="btn-start" class="pulse-btn" onclick="startGame()" style="display: none; background: var(--term-cyan);">[ INITIALIZE ]</button>
+                <button onclick="showLeaderboardScreen()" style="background: var(--term-orange);">[ GLOBAL LEADERBOARD ]</button>
+            </div>
+        </div>
+
+        <div id="leaderboard-screen" class="screen">
+            <h1 style="color: var(--term-orange); font-size: 4rem; margin-bottom: 10px;">GLOBAL UPLINK</h1>
+            <p style="color: var(--term-cyan); font-size: 1.8rem; margin-top: 0;">TOP SECTORS CLEARED</p>
+            <div class="leaderboard-container" id="leaderboard-list">
+                <div style="text-align: center; color: #fff; font-size: 2rem;">Fetching data...</div>
+            </div>
+            <button onclick="goToStartScreen()">[ RETURN TO MAIN MENU ]</button>
         </div>
 
         <div id="shop-screen" class="screen">
@@ -220,7 +242,14 @@
         <div id="game-over-screen" class="screen">
             <h1 style="color: var(--term-red); font-size: 6rem; text-shadow: 0 0 20px var(--term-red);">FATAL ERROR</h1>
             <p id="final-score" style="font-size: 2.5rem; color: #fff; text-align: center; line-height: 1.5;"></p>
-            <button onclick="resetGame()" style="margin-top: 20px;">[ REBOOT ]</button>
+            
+            <div id="name-input-box">
+                <span style="font-size: 2rem; color: var(--term-cyan);">NEW HIGH SCORE ENTRY</span><br>
+                <input type="text" id="player-initials" maxlength="3" placeholder="AAA" autocomplete="off">
+                <button onclick="submitNewScore()" style="background: var(--term-orange);">[ UPLOAD DATA ]</button>
+            </div>
+
+            <button id="btn-reboot" onclick="resetGame()" style="margin-top: 20px;">[ REBOOT ]</button>
         </div>
     </div>
     
@@ -267,12 +296,12 @@
         
         let prestigeMult = 1.0; let prestigeLevel = 0; 
         let zephyrUnlocked = false;
-        let hasTransitionedToZephyr = false; // Tracks if we did the warp
+        let hasTransitionedToZephyr = false; 
 
         let gameState = 'START'; let currentMana = playerStats.maxMana;
         let wave = 0, enemiesToSpawn = 0, spawnTimer = 0, shakeFrames = 0, frameCount = 0;
         let enemies = [], scorchMarks = [], lightnings = [], autoLasers = [], particles = [], floatingTexts = [];
-        let bgStars = []; // Array for parallax stars
+        let bgStars = []; 
         let damageFlash = 0; let autoNodes = []; let glitchInterval = null; 
         let empTimer = 0; let activeBoss = null; let iFrames = 0;
         let dreadnoughtLaserY = -1; let dreadnoughtCharge = 0;
@@ -281,6 +310,7 @@
         let pulseUnlocked = false;
         
         let recentWords = []; const memorySize = 4;
+        let currentFinalScore = 0; // For the leaderboard
 
         const shortWords = ["data", "wire", "core", "byte", "chip", "node", "link", "port", "disk", "ping", "boot", "host", "user", "file", "path", "code", "lock", "key", "scan", "task", "grid", "wave", "sync", "hash", "salt", "cache", "proxy", "admin", "token", "cloud"];
         const longWords = ["network", "system", "memory", "access", "control", "process", "command", "digital", "virtual", "circuit", "gateway", "firewall", "security", "terminal", "hardware", "software", "database", "protocol", "bandwidth", "encrypt", "malware", "monitor", "server", "router", "traffic"];
@@ -306,6 +336,72 @@
 
         let highScore = localStorage.getItem('sysPurgeHighScore') || 0;
         if (highScore > 0) document.getElementById('personal-best').textContent = `BEST SECTOR REACHED: ${highScore}`;
+
+        // ==========================================
+        // GLOBAL LEADERBOARD MOCK API
+        // Replace the contents of these functions with Firebase/Supabase fetch calls!
+        // ==========================================
+        function saveGlobalScore(initials, score) {
+            // REPLACE THIS WITH YOUR DATABASE POST REQUEST
+            // Example: fetch('YOUR_API_URL', { method: 'POST', body: JSON.stringify({name: initials, score: score}) })
+            let localScores = JSON.parse(localStorage.getItem('sysPurgeGlobalMock') || "[]");
+            localScores.push({ name: initials.toUpperCase(), score: score });
+            localScores.sort((a, b) => b.score - a.score);
+            localScores = localScores.slice(0, 10); // Keep top 10
+            localStorage.setItem('sysPurgeGlobalMock', JSON.stringify(localScores));
+        }
+
+        function fetchGlobalScores(callback) {
+            // REPLACE THIS WITH YOUR DATABASE GET REQUEST
+            // Example: fetch('YOUR_API_URL').then(res => res.json()).then(data => callback(data))
+            setTimeout(() => { // Simulated network delay
+                let localScores = JSON.parse(localStorage.getItem('sysPurgeGlobalMock') || "[]");
+                if (localScores.length === 0) {
+                    // Inject some dummy data if empty
+                    localScores = [
+                        {name: "CPU", score: 25}, {name: "RAM", score: 20}, {name: "GPU", score: 15}
+                    ];
+                }
+                callback(localScores);
+            }, 300);
+        }
+
+        function showLeaderboardScreen() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('leaderboard-screen').classList.add('active');
+            
+            let listDiv = document.getElementById('leaderboard-list');
+            listDiv.innerHTML = '<div style="text-align: center; color: #fff; font-size: 2rem;">Fetching data...</div>';
+            
+            fetchGlobalScores((data) => {
+                listDiv.innerHTML = `
+                    <div class="leaderboard-entry" style="border-bottom: 2px solid var(--term-cyan); font-weight: bold; color: var(--term-cyan);">
+                        <span>RANK</span><span>USER</span><span>SECTORS</span>
+                    </div>
+                `;
+                data.forEach((entry, index) => {
+                    listDiv.innerHTML += `
+                        <div class="leaderboard-entry">
+                            <span>#${index + 1}</span><span>${entry.name}</span><span>${entry.score}</span>
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        function goToStartScreen() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('start-screen').classList.add('active');
+        }
+
+        function submitNewScore() {
+            let initials = document.getElementById('player-initials').value.trim();
+            if (initials.length === 0) initials = "ANON";
+            saveGlobalScore(initials, currentFinalScore);
+            document.getElementById('name-input-box').style.display = 'none';
+            showLeaderboardScreen();
+        }
+        // ==========================================
 
         document.querySelector('.game-wrapper').addEventListener('click', () => { initAudio(); cmdInput.focus(); });
 
@@ -538,6 +634,7 @@
             prestigeMult = 1.0; prestigeLevel = 0;
             document.getElementById('shop-prestige').style.display = 'none';
             document.getElementById('btn-prestige').style.display = 'none';
+            document.getElementById('name-input-box').style.display = 'none';
             
             playerStats = { maxMana: 100, manaRegen: 0.2, smiteCost: 20, smiteDmg: 1, souls: 0, zephyrite: 0, faith: 100, autoAtk: 0, autoHack: 0, smiteSplash: false };
             upgradeCosts = { maxMana: 150, regen: 200, dmg: 250, heal: 100, auto: 300, hack: 500, splash: 800 };
@@ -559,14 +656,14 @@
             });
             document.getElementById('btn-up-splash').disabled = false; document.getElementById('btn-up-splash').textContent = "INSTALL";
             
-            document.getElementById('game-over-screen').classList.remove('active'); gameState = 'START';
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            gameState = 'START';
             document.getElementById('boot-log').innerHTML = `> WAITING FOR USER INPUT...<br>> TO INITIATE SEQUENCE, TYPE: <span class="log-cmd blink-cmd">sys.boot</span> IN TERMINAL BELOW.`;
             document.getElementById('btn-start').style.display = 'none';
             if (highScore > 0) document.getElementById('personal-best').textContent = `BEST SECTOR REACHED: ${highScore}`;
             document.getElementById('start-screen').classList.add('active'); cmdInput.value = ''; cmdInput.focus();
         }
 
-        // Init Parallax Stars
         function initStars() {
             bgStars = [];
             for (let i = 0; i < 150; i++) {
@@ -592,7 +689,6 @@
             document.getElementById('ui-wave').textContent = `SECTOR: 0`; updatePlacementUI(); cmdInput.focus();
         }
 
-        // THE ZAPPHIRE TRANSITION TRIGGER
         function startNextWave() {
             document.getElementById('shop-screen').classList.remove('active');
             gameState = 'PLAYING'; wave++; spawnTimer = 0; empTimer = 0; activeBoss = null; bossOverlay.style.opacity = '0'; dreadnoughtLaserY = -1; iFrames = 0;
@@ -606,15 +702,13 @@
                 document.getElementById('hk-6').style.display = 'block'; 
                 document.getElementById('shop-zephyrite').style.display = 'inline';
 
-                // Epic Hyperspace Warp when arriving at World 2!
                 if (!hasTransitionedToZephyr) {
                     hasTransitionedToZephyr = true;
-                    damageFlash = 1.5; // Big white flash
-                    shakeFrames = 60;  // Long screen rumble
+                    damageFlash = 1.5; 
+                    shakeFrames = 60;  
                     sndExplode(); setTimeout(sndPulse, 200); setTimeout(sndExplode, 400);
                     addFloatingText(canvas.width / 2, canvas.height / 2, "WARPING TO ZAPPHIRE NEBULA...", "var(--term-zephyr)");
                     
-                    // Super speed for stars briefly to simulate warp
                     bgStars.forEach(star => star.speed *= 10);
                     setTimeout(() => { bgStars.forEach(star => star.speed /= 10); }, 1500);
                 }
@@ -680,7 +774,6 @@
             }
         }
 
-        // ENEMY EVOLUTION - Colors change based on World 2 status
         function spawnEnemy() {
             const rand = Math.random(); let type = 'bug'; 
             
@@ -704,7 +797,6 @@
             let hpScale = 1 + (wave * 0.20) + (prestigeLevel * 1.5); 
             let speedScale = 1 + (wave * 0.04);
 
-            // Evolve enemy colors for Zapphire World
             let cWorm = zephyrUnlocked ? "#ff00ff" : "#ff003c";
             let cTrojan = zephyrUnlocked ? "#ffff00" : "#ff8800";
             let cBrute = zephyrUnlocked ? "#ff0088" : "#8800ff";
@@ -832,9 +924,10 @@
         function createExplosion(x, y, color, amount) { for (let i = 0; i < amount; i++) particles.push({ x, y, vx: (Math.random() - 0.5)*15, vy: (Math.random() - 0.5)*15, life: 1.0, color, size: Math.floor(Math.random()*5+2)}); }
         function addFloatingText(x, y, text, color) { floatingTexts.push({ x, y, text, color, life: 1.0, vy: -1.0 }); }
 
-        // WORLD 2 VISUAL GLOW UP: Parallax stars and grid tint shift
-        function drawBackgroundGrid(timeScale) {
-            // Stars!
+        // ==========================================
+        // VISUALS: STARS, GLASS, & GRID
+        // ==========================================
+        function drawStars(timeScale) {
             ctx.fillStyle = zephyrUnlocked ? "rgba(217, 0, 255, 0.8)" : "rgba(0, 243, 255, 0.8)";
             bgStars.forEach(star => {
                 ctx.beginPath(); ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2); ctx.fill();
@@ -844,9 +937,31 @@
                     star.y = Math.random() * canvas.height;
                 }
             });
+        }
 
-            // Grid!
-            ctx.strokeStyle = zephyrUnlocked ? "rgba(217, 0, 255, 0.1)" : "rgba(0, 243, 255, 0.05)"; 
+        // NEW: Cockpit/Glass overlay to frame the tactical window
+        function drawGlassOverlay() {
+            ctx.save();
+            // Subtle glass reflection streak
+            let grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            grad.addColorStop(0, "rgba(255, 255, 255, 0.0)");
+            grad.addColorStop(0.35, "rgba(255, 255, 255, 0.01)");
+            grad.addColorStop(0.4, "rgba(255, 255, 255, 0.06)"); // Streak
+            grad.addColorStop(0.45, "rgba(255, 255, 255, 0.0)");
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Dark vignette (Cockpit frame shadow)
+            let vig = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.height*0.35, canvas.width/2, canvas.height/2, canvas.width*0.6);
+            vig.addColorStop(0, "rgba(0,0,0,0)");
+            vig.addColorStop(1, "rgba(0,0,0,0.85)");
+            ctx.fillStyle = vig;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = zephyrUnlocked ? "rgba(217, 0, 255, 0.15)" : "rgba(0, 243, 255, 0.1)"; 
             ctx.lineWidth = 1;
             for(let i = 0; i < canvas.width; i+=40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
             for(let i = 0; i < canvas.height; i+=40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
@@ -858,7 +973,6 @@
             
             let shieldOpacity = Math.max(0.1, playerStats.faith / 200);
             
-            // Server forcefield changes color in World 2
             let shieldBaseCol = zephyrUnlocked ? `rgba(217, 0, 255, ${shieldOpacity})` : `rgba(0, 243, 255, ${shieldOpacity})`;
             ctx.fillStyle = shieldBaseCol;
             
@@ -872,7 +986,6 @@
             
             ctx.fillStyle = "#0a1118"; ctx.strokeStyle = "#1a2a3a"; ctx.lineWidth = 3;
             
-            // Jagged server edge for Zapphire world
             ctx.beginPath(); 
             ctx.moveTo(baseX + 10, 40); 
             ctx.lineTo(baseX + baseWidth, 40); 
@@ -966,7 +1079,6 @@
             if (e.shielded) {
                 let sPulse = Math.sin(frameCount * 0.1) * 3;
                 ctx.strokeStyle = e.color === "#00f3ff" ? "#00f3ff" : (e.color === "#00ffcc" ? "#00ffcc" : "#ff003c"); 
-                // Adjust colors for Zapphire shield
                 if (zephyrUnlocked && e.color === "#39ff14") ctx.strokeStyle = "#39ff14";
                 if (zephyrUnlocked && e.color === "#ffffff") ctx.strokeStyle = "#ffffff";
                 
@@ -1001,11 +1113,22 @@
 
         function showGameOverScreen() {
             gameState = 'GAMEOVER'; let finalScoreBox = document.getElementById('final-score');
-            let sectorsCleared = wave - 1 + (prestigeLevel * 15);
-            if (sectorsCleared > highScore) {
-                localStorage.setItem('sysPurgeHighScore', sectorsCleared); highScore = sectorsCleared;
-                finalScoreBox.innerHTML = `SECTORS CLEARED: ${sectorsCleared}<br><span style="color:var(--term-green);">NEW SYSTEM RECORD!</span>`;
-            } else { finalScoreBox.innerHTML = `SECTORS CLEARED: ${sectorsCleared}<br><span style="font-size:1.5rem; color:#aaa;">BEST: ${highScore}</span>`; }
+            currentFinalScore = wave - 1 + (prestigeLevel * 15);
+            
+            if (currentFinalScore > highScore) {
+                localStorage.setItem('sysPurgeHighScore', currentFinalScore); highScore = currentFinalScore;
+                finalScoreBox.innerHTML = `SECTORS CLEARED: ${currentFinalScore}<br><span style="color:var(--term-green);">NEW SYSTEM RECORD!</span>`;
+            } else { 
+                finalScoreBox.innerHTML = `SECTORS CLEARED: ${currentFinalScore}<br><span style="font-size:1.5rem; color:#aaa;">BEST: ${highScore}</span>`; 
+            }
+            
+            // Show Leaderboard entry ONLY if they actually scored > 0
+            if (currentFinalScore > 0) {
+                document.getElementById('name-input-box').style.display = 'flex';
+            } else {
+                document.getElementById('name-input-box').style.display = 'none';
+            }
+            
             document.getElementById('game-over-screen').classList.add('active');
         }
 
@@ -1015,12 +1138,16 @@
             if (empTimer > 0) empTimer -= timeScale;
             if (iFrames > 0) iFrames -= timeScale;
 
-            // WORLD 2 VISUAL GLOW UP: Dynamic background color
             let baseBgColor = zephyrUnlocked ? "rgba(10, 0, 20, 1.0)" : "rgba(2, 4, 8, 1.0)";
             let focusBgColor = zephyrUnlocked ? "rgba(20, 5, 40, 0.5)" : "rgba(0, 8, 20, 0.4)";
             ctx.fillStyle = focusMode ? focusBgColor : baseBgColor; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            // 1. Draw stars (Far background)
+            drawStars(timeScale);
+            // 2. Draw Glass (Midground illusion)
+            drawGlassOverlay();
+            
             if (activeBoss) {
                 let bgTheme = activeBoss.subType === 'swarm_queen' ? "rgba(255,0,60,0.15)" : (activeBoss.subType === 'dreadnought' ? "rgba(136,0,255,0.15)" : "rgba(0,243,255,0.15)");
                 ctx.fillStyle = bgTheme; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1032,7 +1159,8 @@
             if (gameState !== 'PLAYING') return;
             frameCount++;
 
-            drawBackgroundGrid(timeScale); 
+            // 3. Draw Tactical Elements (Foreground)
+            drawGrid(); 
             drawServer(timeScale);
             
             if (dreadnoughtLaserY !== -1 && activeBoss && activeBoss.subType === 'dreadnought') {
