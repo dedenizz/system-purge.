@@ -346,39 +346,42 @@
         const DREAMLO_PRIVATE_CODE = "p_mnuGlM_kiGiA7AnsWj_gmuv1v4x3tkilZ7OQO02giQ"; // <--- PASTE PRIVATE CODE HERE
 
         function saveGlobalScore(initials, score) {
-            // Strip out weird characters to avoid breaking the URL
             let safeInitials = initials.toUpperCase().replace(/[^A-Z0-9]/g, ''); 
             if (safeInitials === "") safeInitials = "ANON";
             
-            // We RETURN the fetch promise so the game can wait for the upload to finish!
-            return fetch(`https://www.dreamlo.com/lb/${DREAMLO_PRIVATE_CODE}/add/${safeInitials}/${score}`)
-                .then(response => console.log("Score uploaded globally!"))
-                .catch(err => console.error("Error uploading score:", err));
+            return fetch(`https://www.dreamlo.com/lb/${DREAMLO_PRIVATE_CODE}/add/${safeInitials}/${score}`, {
+                method: 'GET',
+                mode: 'cors'
+            })
+            .then(response => console.log("Score uploaded globally!"))
+            .catch(err => console.error("Error uploading score:", err));
         }
 
         function fetchGlobalScores(callback) {
-            fetch(`https://www.dreamlo.com/lb/${DREAMLO_PUBLIC_CODE}/json`)
-                .then(response => response.json())
-                .then(data => {
-                    // IMPORTANT FIX: Safety check for an empty database
-                    if (!data || !data.dreamlo || !data.dreamlo.leaderboard || !data.dreamlo.leaderboard.entry) {
-                        callback([]); // Return empty list without crashing!
-                        return;
-                    }
-                    
-                    let list = data.dreamlo.leaderboard.entry;
-                    if (!Array.isArray(list)) list = [list]; // If only 1 entry, convert to array
-                    
-                    let formattedScores = list.map(item => {
-                        return { name: item.name, score: parseInt(item.score) };
-                    });
-                    
-                    callback(formattedScores.slice(0, 10)); // Top 10 only
-                })
-                .catch(err => {
-                    console.error("Error fetching scores:", err);
-                    callback([{name: "ERR", score: 0}]); // Only show ERR if there is a true network error
+            fetch(`https://www.dreamlo.com/lb/${DREAMLO_PUBLIC_CODE}/json`, {
+                method: 'GET',
+                mode: 'cors'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data || !data.dreamlo || !data.dreamlo.leaderboard || !data.dreamlo.leaderboard.entry) {
+                    callback([]); 
+                    return;
+                }
+                
+                let list = data.dreamlo.leaderboard.entry;
+                if (!Array.isArray(list)) list = [list]; 
+                
+                let formattedScores = list.map(item => {
+                    return { name: item.name, score: parseInt(item.score) };
                 });
+                
+                callback(formattedScores.slice(0, 10)); 
+            })
+            .catch(err => {
+                console.error("Error fetching scores:", err);
+                callback([{name: "ERR", score: 0}]); 
+            });
         }
 
         function showLeaderboardScreen() {
@@ -422,11 +425,9 @@
             let initials = document.getElementById('player-initials').value.trim();
             if (initials.length === 0) initials = "ANON";
             
-            // Wait for the upload to complete before changing screens!
             saveGlobalScore(initials, currentFinalScore).then(() => {
                 document.getElementById('name-input-box').style.display = 'none';
                 
-                // Reset button for next time
                 btn.textContent = "[ UPLOAD DATA ]";
                 btn.disabled = false;
                 btn.style.background = "var(--term-orange)";
@@ -775,8 +776,11 @@
 
         function updateShopUI() {
             document.getElementById('shop-souls').innerHTML = `BYTES: ${playerStats.souls} <span id="shop-zephyrite" style="display:${zephyrUnlocked ? 'inline' : 'none'};">ZEPHYRITE: ${playerStats.zephyrite}</span>`;
+            
+            const idMap = { maxMana: 'max-mana', regen: 'regen', dmg: 'dmg', heal: 'heal', auto: 'auto', hack: 'hack', splash: 'splash' };
             ['maxMana', 'regen', 'dmg', 'heal', 'auto', 'hack', 'splash'].forEach(type => {
-                if (document.getElementById(`cost-${type.toLowerCase()}`)) document.getElementById(`cost-${type.toLowerCase()}`).textContent = `COST: ${upgradeCosts[type]}`;
+                let costEl = document.getElementById(`cost-${idMap[type]}`);
+                if (costEl) costEl.textContent = (type === 'splash' && playerStats.smiteSplash) ? 'MAXED' : `COST: ${upgradeCosts[type]}`;
             });
 
             document.getElementById('btn-up-mana').disabled = playerStats.souls < upgradeCosts.maxMana;
@@ -791,18 +795,48 @@
         function buyUpgrade(type) {
             if (playerStats.souls >= upgradeCosts[type]) {
                 playerStats.souls -= upgradeCosts[type]; sndPing();
-                if (type === 'maxMana') { playerStats.maxMana += 25; upgradeCosts.maxMana = Math.floor(upgradeCosts.maxMana * 1.4); }
-                if (type === 'regen') { playerStats.manaRegen += 0.15; upgradeCosts.regen = Math.floor(upgradeCosts.regen * 1.5); }
-                if (type === 'dmg') { playerStats.smiteDmg += 1; upgradeCosts.dmg = Math.floor(upgradeCosts.dmg * 1.6); document.getElementById('tag-dmg').style.display = 'none'; }
-                if (type === 'heal') { playerStats.faith = Math.min(100, playerStats.faith + 30); upgradeCosts.heal = Math.floor(upgradeCosts.heal * 1.3); document.getElementById('tag-heal').style.display = 'none';}
+                
+                if (type === 'maxMana') { 
+                    playerStats.maxMana += 25; 
+                    upgradeCosts.maxMana = Math.floor(upgradeCosts.maxMana * 1.4); 
+                }
+                if (type === 'regen') { 
+                    playerStats.manaRegen += 0.15; 
+                    upgradeCosts.regen = Math.floor(upgradeCosts.regen * 1.5); 
+                }
+                if (type === 'dmg') { 
+                    playerStats.smiteDmg += 1; 
+                    upgradeCosts.dmg = Math.floor(upgradeCosts.dmg * 1.6); 
+                    document.getElementById('tag-dmg').style.display = 'none'; 
+                }
+                if (type === 'heal') { 
+                    playerStats.faith = Math.min(100, playerStats.faith + 30); 
+                    upgradeCosts.heal = Math.floor(upgradeCosts.heal * 1.3); 
+                    document.getElementById('tag-heal').style.display = 'none';
+                }
                 if (type === 'auto') { 
-                    playerStats.autoAtk++; upgradeCosts.auto = Math.floor(upgradeCosts.auto * 1.8); document.getElementById('tag-auto').style.display = 'none';
+                    playerStats.autoAtk++; 
+                    upgradeCosts.auto = Math.floor(upgradeCosts.auto * 1.8); 
+                    document.getElementById('tag-auto').style.display = 'none';
                     autoNodes.push({ angle: Math.random() * Math.PI * 2, radius: 70 + (playerStats.autoAtk * 10), speed: 0.02 + (Math.random() * 0.03) });
                 }
-                if (type === 'hack') { playerStats.autoHack++; upgradeCosts.hack = Math.floor(upgradeCosts.hack * 2.0); document.getElementById('tag-hack').style.display = 'none';}
-                if (type === 'splash') { playerStats.smiteSplash = true; document.getElementById('card-splash').style.opacity = 0.5; document.getElementById('btn-up-splash').disabled = true; document.getElementById('btn-up-splash').textContent = "INSTALLED"; document.getElementById('tag-splash').style.display = 'none';}
+                if (type === 'hack') { 
+                    playerStats.autoHack++; 
+                    upgradeCosts.hack = Math.floor(upgradeCosts.hack * 2.0); 
+                    document.getElementById('tag-hack').style.display = 'none';
+                }
+                if (type === 'splash') { 
+                    playerStats.smiteSplash = true; 
+                    document.getElementById('card-splash').style.opacity = 0.5; 
+                    document.getElementById('btn-up-splash').disabled = true; 
+                    document.getElementById('btn-up-splash').textContent = "INSTALLED"; 
+                    document.getElementById('tag-splash').style.display = 'none';
+                }
                 
-                document.getElementById('shop-souls').style.color = "#fff"; setTimeout(() => document.getElementById('shop-souls').style.color = "var(--term-cyan)", 150);
+                document.getElementById('shop-souls').style.color = "#fff"; 
+                setTimeout(() => document.getElementById('shop-souls').style.color = "var(--term-cyan)", 150);
+                
+                // Triggers the dynamically assigned UI fix
                 updateShopUI();
             }
         }
