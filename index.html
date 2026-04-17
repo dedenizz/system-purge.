@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>System_Purge.exe v4.1 (Definitive Z-Type Edition)</title>
+    <title>System_Purge.exe v4.2 (Definitive Z-Type Edition)</title>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -162,7 +162,7 @@
             box-shadow: 0 0 15px rgba(0, 243, 255, 0.3); pointer-events: none;
         }
 
-        /* This handles the internal logical stretch */
+        /* Object-fit contain keeps the 16:9 ratio and adds black borders where necessary */
         canvas { 
             cursor: crosshair; display: block; position: absolute; top: 0; left: 0; z-index: 1;
             width: 100%; height: calc(100vh - 85px); object-fit: contain; 
@@ -292,7 +292,7 @@
     </div>
 
     <script>
-        // Fixed Internal Logical Resolution
+        // Game Logic rendering resolution
         const canvas = document.getElementById('gameCanvas'); 
         const ctx = canvas.getContext('2d');
         canvas.width = 1280;
@@ -438,7 +438,7 @@
         // ==========================================
         function shareRun() {
             let anomalyText = currentAnomaly.name !== "NONE" ? ` | 🎲 ${currentAnomaly.name}` : "";
-            let text = `System_Purge.exe [v4.1]\nSector Reached: ${currentFinalScore}${anomalyText}\nScore: ${playerStats.souls} BYTES\n\nCan you beat my system record? 💾🔥⚡️`;
+            let text = `System_Purge.exe [v4.2]\nSector Reached: ${currentFinalScore}${anomalyText}\nScore: ${playerStats.souls} BYTES\n\nCan you beat my system record? 💾🔥⚡️`;
             
             navigator.clipboard.writeText(text).then(() => {
                 let btn = document.getElementById('btn-share');
@@ -505,9 +505,141 @@
             });
         }
 
+        // ==========================================
+        // PERFECT MOUSE CLICK MATH (Accounts for CSS Object-Fit)
+        // ==========================================
+        canvas.addEventListener('mousedown', (e) => {
+            initAudio(); 
+            if (gameState !== 'PLAYING') return;
+            
+            const rect = canvas.getBoundingClientRect(); 
+            const canvasRatio = canvas.width / canvas.height;
+            const rectRatio = rect.width / rect.height;
+            
+            let renderWidth, renderHeight, offsetX = 0, offsetY = 0;
+            
+            // Calculate actual rendered size and empty space offsets
+            if (rectRatio > canvasRatio) {
+                // Monitor is wider than game (Black bars on Left/Right)
+                renderHeight = rect.height;
+                renderWidth = renderHeight * canvasRatio;
+                offsetX = (rect.width - renderWidth) / 2;
+            } else {
+                // Monitor is taller than game (Black bars on Top/Bottom)
+                renderWidth = rect.width;
+                renderHeight = renderWidth / canvasRatio;
+                offsetY = (rect.height - renderHeight) / 2;
+            }
+            
+            const scaleX = canvas.width / renderWidth;
+            const scaleY = canvas.height / renderHeight;
+            
+            // Apply scale AND the empty border offset
+            const clickX = (e.clientX - rect.left - offsetX) * scaleX; 
+            const clickY = (e.clientY - rect.top - offsetY) * scaleY;
+
+            // Prevent interacting if they click outside the game area (in the black bars)
+            if (clickX < 0 || clickX > canvas.width || clickY < 0 || clickY > canvas.height) return;
+
+            if (focusMode) {
+                shakeFrames = 3; addFloatingText(clickX, clickY, "SYS.LOCKED", "#ff003c"); sndError();
+                document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150);
+                return;
+            }
+
+            if (placementMode) {
+                let costBytes = 0; let costZeph = 0;
+                if (placementMode === 'sentry') costBytes = Math.floor(60 * Math.pow(1.2, buildings.filter(b=>b.type==='sentry').length));
+                if (placementMode === 'firewall') costBytes = 40;
+                if (placementMode === 'mine') costBytes = 30;
+                if (placementMode === 'pulse') costBytes = 120;
+                if (placementMode === 'zephyr_sentry') costZeph = 50;
+                if (placementMode === 'plasma_mortar') costZeph = 100;
+
+                if (buildings.length >= maxBuildings) {
+                    addFloatingText(clickX, clickY, "CAPACITY REACHED", "#ff003c"); sndError(); togglePlacement(placementMode);
+                } else if (costBytes > 0 && currentMana >= costBytes) {
+                    currentMana -= costBytes; addBuilding(placementMode, clickX, clickY); togglePlacement(placementMode);
+                } else if (costZeph > 0 && playerStats.zephyrite >= costZeph) {
+                    playerStats.zephyrite -= costZeph; addBuilding(placementMode, clickX, clickY); togglePlacement(placementMode);
+                } else {
+                    addFloatingText(clickX, clickY, costZeph > 0 ? "INSUFFICIENT ZEPH" : "INSUFFICIENT ENG", "#ff003c"); sndError(); togglePlacement(placementMode);
+                }
+                return; 
+            }
+
+            let clickedBuilding = null;
+            for(let i=0; i<buildings.length; i++) {
+                let b = buildings[i];
+                if (b.type === 'sentry' && Math.hypot(b.x - clickX, b.y - clickY) < b.size * 1.5) { clickedBuilding = b; break; }
+                if (b.type === 'firewall' && Math.abs(b.x - clickX) < b.width && Math.abs(b.y - clickY) < b.height) { clickedBuilding = b; break; }
+            }
+
+            if (clickedBuilding && clickedBuilding.type === 'sentry') {
+                if (clickedBuilding.encrypted) { addFloatingText(clickX, clickY, "ENCRYPTED - TYPE TO UNLOCK", "#ff003c"); sndError(); return; }
+                let upgCost = clickedBuilding.level === 1 ? 100 : (clickedBuilding.level === 2 ? 250 : (clickedBuilding.level === 3 ? 500 : (clickedBuilding.level === 4 ? 800 : -1)));
+                if (upgCost !== -1 && currentMana >= upgCost) {
+                    currentMana -= upgCost; clickedBuilding.level++; clickedBuilding.maxHp += 20; clickedBuilding.hp = clickedBuilding.maxHp; clickedBuilding.territory += 40;
+                    if (clickedBuilding.level === 5) {
+                        addFloatingText(clickX, clickY, `OMEGA SENTRY`, "#ff003c"); createExplosion(clickX, clickY, "#ff003c", 40); sndPulse();
+                    } else {
+                        addFloatingText(clickX, clickY, `LVL ${clickedBuilding.level} UPGRADE`, "#39ff14"); createExplosion(clickX, clickY, "#00f3ff", 20); sndPing();
+                    }
+                } else if (upgCost === -1) { addFloatingText(clickX, clickY, "MAX LEVEL", "#00f3ff"); sndError();
+                } else { addFloatingText(clickX, clickY, `NEED ${upgCost} ENG`, "#ff003c"); sndError(); }
+                return; 
+            }
+
+            if (currentMana < playerStats.smiteCost) {
+                document.getElementById('mana-bar').style.background = "#ff003c"; sndError(); setTimeout(() => document.getElementById('mana-bar').style.background = "var(--term-cyan)", 150); return;
+            }
+
+            // Anomaly LUCKY_STRIKE modifier
+            let pwr = playerStats.smiteDmg; 
+            if (currentAnomaly.name === "LUCKY_STRIKE") pwr *= 3;
+
+            currentMana -= playerStats.smiteCost; 
+            shakeFrames = 3 + (pwr * 2); 
+            lightnings.push({ x: clickX, y: clickY, life: 10 + (pwr*5), thickness: pwr }); 
+            scorchMarks.push({ x: clickX, y: clickY, life: 60 + (pwr*20), size: pwr });
+            createExplosion(clickX, clickY, "#00f3ff", 10 + (pwr*5)); sndExplode();
+            
+            let smiteRadius = playerStats.smiteSplash ? 100 : (60 + (pwr*5));
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                if (Math.hypot(enemy.x - clickX, enemy.y - clickY) < smiteRadius + enemy.size) {
+                    if (enemy.shielded) { addFloatingText(enemy.x, enemy.y, "ENCRYPTED", "#ff003c"); createExplosion(enemy.x, enemy.y, "#ff003c", 10); continue; }
+                    if (enemy.type === 'phantom' && enemy.alpha < 0.5) continue; 
+
+                    enemy.hp -= (pwr * prestigeMult); 
+                    
+                    if (enemy.hp <= 0) {
+                        createExplosion(enemy.x, enemy.y, enemy.color, 50); 
+                        if (enemy.type === 'boss') {
+                            playerStats.souls += 1000; playerStats.faith = 100;
+                            if (wave > 10) { playerStats.zephyrite += 200; addFloatingText(enemy.x, enemy.y + 20, "+200 ZEPH", "var(--term-zephyr)"); }
+                            addFloatingText(enemy.x, enemy.y, "BOSS DEFEATED: +1000 BYTES", "#39ff14"); addFloatingText(canvas.width/2, canvas.height/2, "SYSTEM FULLY RESTORED", "#39ff14");
+                            shakeFrames = 30; damageFlash = 0.8; activeBoss = null; bossOverlay.style.opacity = '0';
+                        } else {
+                            playerStats.souls += enemy.maxHp * 15; addFloatingText(enemy.x, enemy.y, `+${enemy.maxHp * 15}`, "#fff");
+                            if (wave > 10) {
+                                let zDrop = Math.ceil(enemy.maxHp * 2); playerStats.zephyrite += zDrop;
+                                addFloatingText(enemy.x, enemy.y + 15, `+${zDrop}Z`, "var(--term-zephyr)");
+                            }
+                        }
+                        enemies.splice(i, 1);
+                    } else {
+                        createExplosion(enemy.x, enemy.y, "#fff", 10); addFloatingText(enemy.x, enemy.y, `HIT`, "#fff");
+                        if(enemy.type === 'boss') sndBossHit();
+                    }
+                }
+            }
+        });
+
+        // Makes sure we keep keyboard focus when casually clicking UI
         document.querySelector('.game-wrapper').addEventListener('click', (e) => { 
             initAudio(); 
-            // Fix input stealing focus from buttons and textareas
             if (e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && !e.target.closest('button') && !e.target.closest('.building-option')) {
                 cmdInput.focus(); 
             }
@@ -1047,137 +1179,6 @@
             enemies.push(e); enemiesToSpawn--; 
         }
 
-        canvas.addEventListener('mousedown', (e) => {
-            initAudio(); if (gameState !== 'PLAYING') return;
-            
-            // Re-calculate the actual click coordinates on the CSS-stretched canvas!
-            const rect = canvas.getBoundingClientRect(); 
-            const scaleX = canvas.width / rect.width; 
-            const scaleY = canvas.height / rect.height;
-            const clickX = (e.clientX - rect.left) * scaleX; 
-            const clickY = (e.clientY - rect.top) * scaleY;
-
-            if (focusMode) {
-                shakeFrames = 3; addFloatingText(clickX, clickY, "SYS.LOCKED", "#ff003c"); sndError();
-                document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150);
-                return;
-            }
-
-            if (placementMode) {
-                let costBytes = 0; let costZeph = 0;
-                if (placementMode === 'sentry') costBytes = Math.floor(60 * Math.pow(1.2, buildings.filter(b=>b.type==='sentry').length));
-                if (placementMode === 'firewall') costBytes = 40;
-                if (placementMode === 'mine') costBytes = 30;
-                if (placementMode === 'pulse') costBytes = 120;
-                if (placementMode === 'zephyr_sentry') costZeph = 50;
-                if (placementMode === 'plasma_mortar') costZeph = 100;
-
-                if (buildings.length >= maxBuildings) {
-                    addFloatingText(clickX, clickY, "CAPACITY REACHED", "#ff003c"); sndError(); togglePlacement(placementMode);
-                } else if (costBytes > 0 && currentMana >= costBytes) {
-                    currentMana -= costBytes; addBuilding(placementMode, clickX, clickY); togglePlacement(placementMode);
-                } else if (costZeph > 0 && playerStats.zephyrite >= costZeph) {
-                    playerStats.zephyrite -= costZeph; addBuilding(placementMode, clickX, clickY); togglePlacement(placementMode);
-                } else {
-                    addFloatingText(clickX, clickY, costZeph > 0 ? "INSUFFICIENT ZEPH" : "INSUFFICIENT ENG", "#ff003c"); sndError(); togglePlacement(placementMode);
-                }
-                return; 
-            }
-
-            let clickedBuilding = null;
-            for(let i=0; i<buildings.length; i++) {
-                let b = buildings[i];
-                if (b.type === 'sentry' && Math.hypot(b.x - clickX, b.y - clickY) < b.size * 1.5) { clickedBuilding = b; break; }
-                if (b.type === 'firewall' && Math.abs(b.x - clickX) < b.width && Math.abs(b.y - clickY) < b.height) { clickedBuilding = b; break; }
-            }
-
-            if (clickedBuilding && clickedBuilding.type === 'sentry') {
-                if (clickedBuilding.encrypted) { addFloatingText(clickX, clickY, "ENCRYPTED - TYPE TO UNLOCK", "#ff003c"); sndError(); return; }
-                let upgCost = clickedBuilding.level === 1 ? 100 : (clickedBuilding.level === 2 ? 250 : (clickedBuilding.level === 3 ? 500 : (clickedBuilding.level === 4 ? 800 : -1)));
-                if (upgCost !== -1 && currentMana >= upgCost) {
-                    currentMana -= upgCost; clickedBuilding.level++; clickedBuilding.maxHp += 20; clickedBuilding.hp = clickedBuilding.maxHp; clickedBuilding.territory += 40;
-                    if (clickedBuilding.level === 5) {
-                        addFloatingText(clickX, clickY, `OMEGA SENTRY`, "#ff003c"); createExplosion(clickX, clickY, "#ff003c", 40); sndPulse();
-                    } else {
-                        addFloatingText(clickX, clickY, `LVL ${clickedBuilding.level} UPGRADE`, "#39ff14"); createExplosion(clickX, clickY, "#00f3ff", 20); sndPing();
-                    }
-                } else if (upgCost === -1) { addFloatingText(clickX, clickY, "MAX LEVEL", "#00f3ff"); sndError();
-                } else { addFloatingText(clickX, clickY, `NEED ${upgCost} ENG`, "#ff003c"); sndError(); }
-                return; 
-            }
-
-            if (currentMana < playerStats.smiteCost) {
-                document.getElementById('mana-bar').style.background = "#ff003c"; sndError(); setTimeout(() => document.getElementById('mana-bar').style.background = "var(--term-cyan)", 150); return;
-            }
-
-            // Anomaly LUCKY_STRIKE modifier
-            let pwr = playerStats.smiteDmg; 
-            if (currentAnomaly.name === "LUCKY_STRIKE") pwr *= 3;
-
-            currentMana -= playerStats.smiteCost; 
-            shakeFrames = 3 + (pwr * 2); 
-            lightnings.push({ x: clickX, y: clickY, life: 10 + (pwr*5), thickness: pwr }); 
-            scorchMarks.push({ x: clickX, y: clickY, life: 60 + (pwr*20), size: pwr });
-            createExplosion(clickX, clickY, "#00f3ff", 10 + (pwr*5)); sndExplode();
-            
-            let smiteRadius = playerStats.smiteSplash ? 100 : (60 + (pwr*5));
-
-            for (let i = enemies.length - 1; i >= 0; i--) {
-                const enemy = enemies[i];
-                if (Math.hypot(enemy.x - clickX, enemy.y - clickY) < smiteRadius + enemy.size) {
-                    if (enemy.shielded) { addFloatingText(enemy.x, enemy.y, "ENCRYPTED", "#ff003c"); createExplosion(enemy.x, enemy.y, "#ff003c", 10); continue; }
-                    if (enemy.type === 'phantom' && enemy.alpha < 0.5) continue; 
-
-                    enemy.hp -= (pwr * prestigeMult); 
-                    
-                    if (enemy.hp <= 0) {
-                        createExplosion(enemy.x, enemy.y, enemy.color, 50); 
-                        if (enemy.type === 'boss') {
-                            playerStats.souls += 1000; playerStats.faith = 100;
-                            if (wave > 10) { playerStats.zephyrite += 200; addFloatingText(enemy.x, enemy.y + 20, "+200 ZEPH", "var(--term-zephyr)"); }
-                            addFloatingText(enemy.x, enemy.y, "BOSS DEFEATED: +1000 BYTES", "#39ff14"); addFloatingText(canvas.width/2, canvas.height/2, "SYSTEM FULLY RESTORED", "#39ff14");
-                            shakeFrames = 30; damageFlash = 0.8; activeBoss = null; bossOverlay.style.opacity = '0';
-                        } else {
-                            playerStats.souls += enemy.maxHp * 15; addFloatingText(enemy.x, enemy.y, `+${enemy.maxHp * 15}`, "#fff");
-                            if (wave > 10) {
-                                let zDrop = Math.ceil(enemy.maxHp * 2); playerStats.zephyrite += zDrop;
-                                addFloatingText(enemy.x, enemy.y + 15, `+${zDrop}Z`, "var(--term-zephyr)");
-                            }
-                        }
-                        enemies.splice(i, 1);
-                    } else {
-                        createExplosion(enemy.x, enemy.y, "#fff", 10); addFloatingText(enemy.x, enemy.y, `HIT`, "#fff");
-                        if(enemy.type === 'boss') sndBossHit();
-                    }
-                }
-            }
-        });
-
-        function createExplosion(x, y, color, amount) {
-            for (let i = 0; i < amount; i++) {
-                particles.push({ 
-                    x: x, 
-                    y: y, 
-                    vx: (Math.random() - 0.5) * 15, 
-                    vy: (Math.random() - 0.5) * 15, 
-                    life: 1.0, 
-                    color: color, 
-                    size: Math.floor(Math.random() * 5 + 2)
-                });
-            }
-        }
-
-        function addFloatingText(x, y, text, color) {
-            floatingTexts.push({ 
-                x: x, 
-                y: y, 
-                text: text, 
-                color: color, 
-                life: 1.0, 
-                vy: -1.0 
-            });
-        }
-
         function drawStars(timeScale) {
             ctx.fillStyle = zephyrUnlocked ? "rgba(217, 0, 255, 0.8)" : "rgba(0, 243, 255, 0.8)";
             bgStars.forEach(star => {
@@ -1433,13 +1434,11 @@
                 
                 ctx.font = e.type === 'boss' ? "bold 30px 'VT323', monospace" : "bold 20px 'VT323', monospace"; 
                 
-                // Z-TYPE MECHANIC: Slice word if it is currently locked!
                 let displayWord = e.word;
                 if (targetLock && targetLock.type === 'enemy' && targetLock.ref === e) {
                     displayWord = e.word.substring(lockString.length);
                 }
 
-                // DRAW SOLID BACKGROUND FOR THE TEXT TO PREVENT OVERLAPPING VISUALS
                 let textWidth = ctx.measureText(displayWord).width;
                 let textY = e.y - e.size - 10 - sPulse;
                 
@@ -1449,7 +1448,6 @@
                 ctx.lineWidth = 1;
                 ctx.strokeRect(e.x - textWidth/2 - 4, textY - (e.type === 'boss' ? 24 : 16), textWidth + 8, (e.type === 'boss' ? 32 : 20));
                 
-                // DRAW THE TEXT ITSELF
                 ctx.fillStyle = "#fff"; 
                 ctx.textAlign = "center"; 
                 ctx.fillText(displayWord, e.x, textY);
@@ -1464,62 +1462,6 @@
             }
         }
 
-        function triggerDeathSequence() {
-            playerStats.faith = 0; 
-            gameState = 'DEATH_SEQ'; 
-            focusMode = false; 
-            gameContainer.classList.remove('focus-mode');
-            
-            document.getElementById('in-game-ui').style.display = 'none'; 
-            cmdInput.blur();
-            
-            let glitchTicks = 0; 
-            sndExplode();
-            
-            glitchInterval = setInterval(() => {
-                ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,0,60,0.3)" : "rgba(0,0,0,0.8)"; 
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                ctx.fillStyle = "#fff"; 
-                ctx.font = "bold 40px 'VT323'";
-                
-                for(let i=0; i<5; i++) {
-                    ctx.fillText("CRITICAL FAILURE", Math.random() * canvas.width, Math.random() * canvas.height);
-                }
-                
-                glitchTicks++; 
-                if(glitchTicks % 5 === 0) sndError();
-                
-                if (glitchTicks > 30) { 
-                    clearInterval(glitchInterval); 
-                    showGameOverScreen(); 
-                }
-            }, 50);
-        }
-
-        function showGameOverScreen() {
-            gameState = 'GAMEOVER'; 
-            let finalScoreBox = document.getElementById('final-score');
-            
-            currentFinalScore = wave - 1 + (prestigeLevel * 15);
-            
-            if (currentFinalScore > highScore) {
-                localStorage.setItem('sysPurgeHighScore', currentFinalScore); 
-                highScore = currentFinalScore;
-                finalScoreBox.innerHTML = `SECTORS CLEARED: ${currentFinalScore}<br><span style="color:var(--term-green);">NEW SYSTEM RECORD!</span>`;
-            } else { 
-                finalScoreBox.innerHTML = `SECTORS CLEARED: ${currentFinalScore}<br><span style="font-size:1.5rem; color:#aaa;">BEST: ${highScore}</span>`; 
-            }
-            
-            if (currentFinalScore > 0) {
-                document.getElementById('name-input-box').style.display = 'flex'; 
-            } else {
-                document.getElementById('name-input-box').style.display = 'none';
-            }
-            
-            document.getElementById('game-over-screen').classList.add('active');
-        }
-
         function gameLoop() {
             requestAnimationFrame(gameLoop); 
             
@@ -1529,7 +1471,6 @@
             if (empTimer > 0) empTimer -= timeScale;
             if (iFrames > 0) iFrames -= timeScale;
 
-            // Target lock validation (if enemy died while locked, release lock)
             if (targetLock) {
                 let valid = false;
                 if (targetLock.type === 'enemy' && enemies.includes(targetLock.ref) && targetLock.ref.shielded) valid = true;
@@ -1657,7 +1598,6 @@
                         displayWord = b.word.substring(lockString.length);
                     }
 
-                    // DRAW SOLID BACKGROUND FOR ENCRYPTED BUILDINGS
                     let textWidth = ctx.measureText(displayWord).width;
                     let textY = b.y - 30;
                     
