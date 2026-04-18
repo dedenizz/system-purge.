@@ -520,12 +520,10 @@
             
             // Calculate actual rendered size and empty space offsets
             if (rectRatio > canvasRatio) {
-                // Monitor is wider than game (Black bars on Left/Right)
                 renderHeight = rect.height;
                 renderWidth = renderHeight * canvasRatio;
                 offsetX = (rect.width - renderWidth) / 2;
             } else {
-                // Monitor is taller than game (Black bars on Top/Bottom)
                 renderWidth = rect.width;
                 renderHeight = renderWidth / canvasRatio;
                 offsetY = (rect.height - renderHeight) / 2;
@@ -534,16 +532,22 @@
             const scaleX = canvas.width / renderWidth;
             const scaleY = canvas.height / renderHeight;
             
-            // Apply scale AND the empty border offset
             const clickX = (e.clientX - rect.left - offsetX) * scaleX; 
             const clickY = (e.clientY - rect.top - offsetY) * scaleY;
 
             // Prevent interacting if they click outside the game area (in the black bars)
             if (clickX < 0 || clickX > canvas.width || clickY < 0 || clickY > canvas.height) return;
 
+            // Fix for "Stuck in Type Mode": Clicking the background cancels the lock!
             if (focusMode) {
-                shakeFrames = 3; addFloatingText(clickX, clickY, "SYS.LOCKED", "#ff003c"); sndError();
-                document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150);
+                targetLock = null; 
+                lockString = ""; 
+                cmdInput.value = ""; 
+                combo = 0; 
+                sndError();
+                focusMode = false; 
+                gameContainer.classList.remove('focus-mode');
+                addFloatingText(clickX, clickY, "LOCK CLEARED", "#00f3ff");
                 return;
             }
 
@@ -645,12 +649,36 @@
             }
         });
 
+        // Fixed Keydown listener so '1' doesn't get typed into the command line when hitting a hotkey!
+        window.addEventListener('keydown', (e) => {
+            if (gameState === 'PLAYING' && !targetLock) {
+                if (['1','2','3','4','5','6'].includes(e.key)) {
+                    e.preventDefault(); // Stop the number from typing into the input box
+                    if (e.key === '1') togglePlacement('sentry');
+                    if (e.key === '2') togglePlacement('firewall');
+                    if (e.key === '3') togglePlacement('mine');
+                    if (e.key === '4' && pulseUnlocked) togglePlacement('pulse');
+                    if (e.key === '5' && zephyrUnlocked) togglePlacement('zephyr_sentry');
+                    if (e.key === '6' && zephyrUnlocked) togglePlacement('plasma_mortar');
+                }
+            }
+            
+            // Allow canceling lock easily with Escape
+            if (e.key === 'Escape' && targetLock) {
+                targetLock = null; lockString = ""; cmdInput.value = ""; combo = 0; sndError();
+                focusMode = false; gameContainer.classList.remove('focus-mode');
+            }
+        });
+
         // ==========================================
-        // Z-TYPE INPUT ENGINE
+        // Z-TYPE INPUT ENGINE (Fixed for auto-complete and fast typists)
         // ==========================================
         cmdInput.addEventListener('input', (e) => {
             initAudio();
-            if (gameState !== 'PLAYING' && gameState !== 'START') return;
+            if (gameState !== 'PLAYING' && gameState !== 'START') {
+                cmdInput.value = "";
+                return;
+            }
             if (useCustomWords && document.activeElement.id === 'custom-dict-input') return;
 
             let val = cmdInput.value.toLowerCase();
@@ -662,63 +690,59 @@
                 return;
             }
 
-            let key = val.slice(-1);
+            // Process all newly added characters (Supports mobile word-pasting!)
+            let newChars = val.slice(lockString.length);
+            
+            for (let i = 0; i < newChars.length; i++) {
+                let key = newChars[i];
 
-            // Handle pure hotkeys during gameplay when not locked
-            if (gameState === 'PLAYING' && !targetLock && ['1','2','3','4','5','6'].includes(key)) {
-                if (key === '1') togglePlacement('sentry');
-                if (key === '2') togglePlacement('firewall');
-                if (key === '3') togglePlacement('mine');
-                if (key === '4' && pulseUnlocked) togglePlacement('pulse');
-                if (key === '5' && zephyrUnlocked) togglePlacement('zephyr_sentry');
-                if (key === '6' && zephyrUnlocked) togglePlacement('plasma_mortar');
-                cmdInput.value = ""; 
-                return;
-            }
+                if (!targetLock) {
+                    // Gather all available targets to lock onto
+                    let potentialTargets = [];
+                    if (gameState === 'START') {
+                        potentialTargets.push({type: 'boot', word: 'sys.boot'});
+                    } else if (gameState === 'PLAYING') {
+                        enemies.forEach(en => { if(en.shielded) potentialTargets.push({type: 'enemy', ref: en, word: en.word}); });
+                        buildings.forEach(b => { if(b.encrypted) potentialTargets.push({type: 'building', ref: b, word: b.word}); });
+                        potentialTargets.push({type: 'command', word: 'repair'});
+                        potentialTargets.push({type: 'command', word: 'overclock'});
+                        potentialTargets.push({type: 'command', word: 'purge'});
+                        
+                        // Sort by closeness to base (higher X is closer)
+                        potentialTargets.sort((a, b) => {
+                            let ax = a.type === 'enemy' ? a.ref.x : (a.type === 'building' ? a.ref.x : -999);
+                            let bx = b.type === 'enemy' ? b.ref.x : (b.type === 'building' ? b.ref.x : -999);
+                            return bx - ax; 
+                        });
+                    }
 
-            // Gather all available targets to lock onto
-            let potentialTargets = [];
-            if (gameState === 'START') {
-                potentialTargets.push({type: 'boot', word: 'sys.boot'});
-            } else if (gameState === 'PLAYING') {
-                enemies.forEach(en => { if(en.shielded) potentialTargets.push({type: 'enemy', ref: en, word: en.word}); });
-                buildings.forEach(b => { if(b.encrypted) potentialTargets.push({type: 'building', ref: b, word: b.word}); });
-                potentialTargets.push({type: 'command', word: 'repair'});
-                potentialTargets.push({type: 'command', word: 'overclock'});
-                potentialTargets.push({type: 'command', word: 'purge'});
-                
-                // Sort by closeness to base (higher X is closer)
-                potentialTargets.sort((a, b) => {
-                    let ax = a.type === 'enemy' ? a.ref.x : (a.type === 'building' ? a.ref.x : -999);
-                    let bx = b.type === 'enemy' ? b.ref.x : (b.type === 'building' ? b.ref.x : -999);
-                    return bx - ax; 
-                });
-            }
-
-            if (!targetLock) {
-                let found = potentialTargets.find(t => t.word.startsWith(key));
-                if (found) {
-                    targetLock = found; lockString = key; combo++; sndType();
-                    focusMode = true; 
-                    if (gameState === 'PLAYING') { gameContainer.classList.add('focus-mode'); placementMode = null; updatePlacementUI(); }
-                    shootLetterProjectile(key, targetLock);
-                } else {
-                    combo = 0; sndError();
-                    if (gameState === 'PLAYING') { shakeFrames = 3; document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150); }
-                }
-            } else {
-                let expectedKey = targetLock.word.charAt(lockString.length);
-                if (key === expectedKey) {
-                    lockString += key; combo++; sndType();
-                    shootLetterProjectile(key, targetLock);
-                    
-                    if (lockString === targetLock.word) {
-                        executeLock(targetLock);
-                        targetLock = null; lockString = ""; focusMode = false; gameContainer.classList.remove('focus-mode');
+                    let found = potentialTargets.find(t => t.word.startsWith(key));
+                    if (found) {
+                        targetLock = found; lockString = key; combo++; sndType();
+                        focusMode = true; 
+                        if (gameState === 'PLAYING') { gameContainer.classList.add('focus-mode'); placementMode = null; updatePlacementUI(); }
+                        shootLetterProjectile(key, targetLock);
+                    } else {
+                        combo = 0; sndError();
+                        if (gameState === 'PLAYING') { shakeFrames = 3; document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150); }
+                        break; // Stop parsing if wrong
                     }
                 } else {
-                    combo = 0; sndError();
-                    if (gameState === 'PLAYING') { shakeFrames = 3; document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150); }
+                    let expectedKey = targetLock.word.charAt(lockString.length);
+                    if (key === expectedKey) {
+                        lockString += key; combo++; sndType();
+                        shootLetterProjectile(key, targetLock);
+                        
+                        if (lockString === targetLock.word) {
+                            executeLock(targetLock);
+                            targetLock = null; lockString = ""; focusMode = false; gameContainer.classList.remove('focus-mode');
+                            break; // Stop parsing if word is complete
+                        }
+                    } else {
+                        combo = 0; sndError();
+                        if (gameState === 'PLAYING') { shakeFrames = 3; document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150); }
+                        break; // Stop parsing if wrong
+                    }
                 }
             }
             
@@ -771,6 +795,7 @@
                         addFloatingText(en.x, en.y + 15, `+${zReward}Z`, "var(--term-zephyr)");
                     } 
                     addFloatingText(en.x, en.y, "DECRYPTED", "#fff"); sndPing(); 
+                    
                     let idx = enemies.indexOf(en);
                     if (idx > -1) enemies.splice(idx, 1); 
                 }
@@ -1434,11 +1459,13 @@
                 
                 ctx.font = e.type === 'boss' ? "bold 30px 'VT323', monospace" : "bold 20px 'VT323', monospace"; 
                 
+                // Z-TYPE MECHANIC: Slice word if it is currently locked!
                 let displayWord = e.word;
                 if (targetLock && targetLock.type === 'enemy' && targetLock.ref === e) {
                     displayWord = e.word.substring(lockString.length);
                 }
 
+                // DRAW SOLID BACKGROUND FOR THE TEXT TO PREVENT OVERLAPPING VISUALS
                 let textWidth = ctx.measureText(displayWord).width;
                 let textY = e.y - e.size - 10 - sPulse;
                 
@@ -1448,6 +1475,7 @@
                 ctx.lineWidth = 1;
                 ctx.strokeRect(e.x - textWidth/2 - 4, textY - (e.type === 'boss' ? 24 : 16), textWidth + 8, (e.type === 'boss' ? 32 : 20));
                 
+                // DRAW THE TEXT ITSELF
                 ctx.fillStyle = "#fff"; 
                 ctx.textAlign = "center"; 
                 ctx.fillText(displayWord, e.x, textY);
@@ -1462,6 +1490,62 @@
             }
         }
 
+        function triggerDeathSequence() {
+            playerStats.faith = 0; 
+            gameState = 'DEATH_SEQ'; 
+            focusMode = false; 
+            gameContainer.classList.remove('focus-mode');
+            
+            document.getElementById('in-game-ui').style.display = 'none'; 
+            cmdInput.blur();
+            
+            let glitchTicks = 0; 
+            sndExplode();
+            
+            glitchInterval = setInterval(() => {
+                ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,0,60,0.3)" : "rgba(0,0,0,0.8)"; 
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = "#fff"; 
+                ctx.font = "bold 40px 'VT323'";
+                
+                for(let i=0; i<5; i++) {
+                    ctx.fillText("CRITICAL FAILURE", Math.random() * canvas.width, Math.random() * canvas.height);
+                }
+                
+                glitchTicks++; 
+                if(glitchTicks % 5 === 0) sndError();
+                
+                if (glitchTicks > 30) { 
+                    clearInterval(glitchInterval); 
+                    showGameOverScreen(); 
+                }
+            }, 50);
+        }
+
+        function showGameOverScreen() {
+            gameState = 'GAMEOVER'; 
+            let finalScoreBox = document.getElementById('final-score');
+            
+            currentFinalScore = wave - 1 + (prestigeLevel * 15);
+            
+            if (currentFinalScore > highScore) {
+                localStorage.setItem('sysPurgeHighScore', currentFinalScore); 
+                highScore = currentFinalScore;
+                finalScoreBox.innerHTML = `SECTORS CLEARED: ${currentFinalScore}<br><span style="color:var(--term-green);">NEW SYSTEM RECORD!</span>`;
+            } else { 
+                finalScoreBox.innerHTML = `SECTORS CLEARED: ${currentFinalScore}<br><span style="font-size:1.5rem; color:#aaa;">BEST: ${highScore}</span>`; 
+            }
+            
+            if (currentFinalScore > 0) {
+                document.getElementById('name-input-box').style.display = 'flex'; 
+            } else {
+                document.getElementById('name-input-box').style.display = 'none';
+            }
+            
+            document.getElementById('game-over-screen').classList.add('active');
+        }
+
         function gameLoop() {
             requestAnimationFrame(gameLoop); 
             
@@ -1471,6 +1555,7 @@
             if (empTimer > 0) empTimer -= timeScale;
             if (iFrames > 0) iFrames -= timeScale;
 
+            // Target lock validation (if enemy died while locked, release lock)
             if (targetLock) {
                 let valid = false;
                 if (targetLock.type === 'enemy' && enemies.includes(targetLock.ref) && targetLock.ref.shielded) valid = true;
@@ -1598,6 +1683,7 @@
                         displayWord = b.word.substring(lockString.length);
                     }
 
+                    // DRAW SOLID BACKGROUND FOR ENCRYPTED BUILDINGS
                     let textWidth = ctx.measureText(displayWord).width;
                     let textY = b.y - 30;
                     
