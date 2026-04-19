@@ -674,10 +674,17 @@
             handleInteract(e);
         }, { passive: false });
 
-        document.querySelector('.game-wrapper').addEventListener('click', (e) => { 
-            initAudio(); 
-            if (e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && !e.target.closest('button') && !e.target.closest('.building-option')) {
-                cmdInput.focus(); 
+        window.addEventListener('keydown', (e) => {
+            if (gameState === 'PLAYING' && !targetLock) {
+                if (['1','2','3','4','5','6'].includes(e.key)) {
+                    e.preventDefault(); // FIX: Stops the number from typing into the terminal
+                    if (e.key === '1') togglePlacement('sentry');
+                    if (e.key === '2') togglePlacement('firewall');
+                    if (e.key === '3') togglePlacement('mine');
+                    if (e.key === '4' && pulseUnlocked) togglePlacement('pulse');
+                    if (e.key === '5' && zephyrUnlocked) togglePlacement('zephyr_sentry');
+                    if (e.key === '6' && zephyrUnlocked) togglePlacement('plasma_mortar');
+                }
             }
         });
 
