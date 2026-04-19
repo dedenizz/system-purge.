@@ -714,7 +714,7 @@
         // Z-TYPE INPUT ENGINE
         // Completely refactored to support predictive text, copy/paste, and autocorrect bugginess
         // ==========================================
-        cmdInput.addEventListener('input', (e) => {
+ cmdInput.addEventListener('input', (e) => {
             initAudio();
             if (gameState !== 'PLAYING' && gameState !== 'START') {
                 cmdInput.value = "";
@@ -722,8 +722,8 @@
             }
             if (useCustomWords && document.activeElement.id === 'custom-dict-input') return;
 
-            // Automatically clean the input from mobile keyboards adding phantom spaces
-            let val = cmdInput.value.toLowerCase().replace(/\s/g, ''); 
+            // FIX: Trim prevents mobile spacebar from breaking words!
+            let val = cmdInput.value.toLowerCase().trim();
 
             if (val.length < lockString.length) {
                 targetLock = null; lockString = ""; cmdInput.value = ""; combo = 0; sndError();
@@ -732,7 +732,6 @@
             }
 
             let newChars = val.slice(lockString.length);
-            let validSoFar = true;
             
             for (let i = 0; i < newChars.length; i++) {
                 let key = newChars[i];
@@ -765,16 +764,14 @@
                         if (lockString === targetLock.word) {
                             executeLock(targetLock);
                             targetLock = null; lockString = ""; focusMode = false; gameContainer.classList.remove('focus-mode');
-                            cmdInput.value = ""; 
-                            validSoFar = false;
-                            break; 
+                            cmdInput.value = "";
+                            return; // FIX: Safely break out when word is finished
                         }
                     } else {
                         combo = 0; sndError();
-                        if (gameState === 'PLAYING') { shakeFrames = 3; document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150); }
                         targetLock = null; lockString = ""; cmdInput.value = ""; focusMode = false; gameContainer.classList.remove('focus-mode');
-                        validSoFar = false;
-                        break; 
+                        if (gameState === 'PLAYING') { shakeFrames = 3; document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150); }
+                        return; // FIX: Safely break out on typo
                     }
                 } else {
                     let expectedKey = targetLock.word.charAt(lockString.length);
@@ -785,19 +782,20 @@
                         if (lockString === targetLock.word) {
                             executeLock(targetLock);
                             targetLock = null; lockString = ""; focusMode = false; gameContainer.classList.remove('focus-mode');
-                            cmdInput.value = ""; 
-                            validSoFar = false;
-                            break; 
+                            cmdInput.value = "";
+                            return; // FIX: Safely break out when word is finished
                         }
                     } else {
                         combo = 0; sndError();
-                        if (gameState === 'PLAYING') { shakeFrames = 3; document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150); }
                         targetLock = null; lockString = ""; cmdInput.value = ""; focusMode = false; gameContainer.classList.remove('focus-mode');
-                        validSoFar = false;
-                        break; 
+                        if (gameState === 'PLAYING') { shakeFrames = 3; document.getElementById('cmd-input').style.background = "rgba(255,0,60,0.3)"; setTimeout(() => document.getElementById('cmd-input').style.background = "transparent", 150); }
+                        return; // FIX: Safely break out on typo
                     }
                 }
             }
+            
+            cmdInput.value = lockString;
+        });
             
             // Only update input UI value if we didn't just clear it by breaking out of an error or success state
             if (validSoFar) cmdInput.value = lockString;
